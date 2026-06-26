@@ -33,6 +33,41 @@
 
 ---
 
+## Pre-Payment Health Check — Overview
+
+**We NEVER let a customer pay unless we know we can deliver.**
+
+```
+Customer selects product → We check provider availability FIRST
+→ If provider is UP + IPs available → Generate payment link
+→ If provider is DOWN or no IPs → Tell customer, don't charge them
+```
+
+**Why this matters:**
+- Customer pays only when we can deliver ✅
+- No refunds needed because no failed deliveries ✅
+- Customer trust preserved ✅
+
+---
+
+## IP Testing — Overview
+
+**We test every IP before sending it to a customer.**
+
+```
+Provider returns IP → We test it (5 second timeout)
+→ If IP responds → Send to customer ✅
+→ If IP fails → Request replacement → Test replacement
+→ If replacement fails → Refund customer automatically ✅
+```
+
+**Why this matters:**
+- Customer only receives working IPs ✅
+- We catch dead IPs before they do ✅
+- No "this proxy doesn't work" complaints ✅
+
+---
+
 ## Pricing (₦1,380/$1)
 
 | Product | Price | Provider | Data | Expiry | Rollover |
@@ -40,8 +75,8 @@
 | 🇬🇧🇺🇸🇩🇪 ISP | **₦6,500/mo** | Proxy-Seller | Unlimited | Monthly date | ✅ Same IP on renewal |
 | 🌏 Premium ISP (JP, AU, BR, SG, KR) | **₦7,500/mo** | Proxy-Seller | Unlimited | Monthly date | ✅ Same IP on renewal |
 | 💻 Datacenter | **₦3,000/mo** | Proxy-Seller | Unlimited | Monthly date | ✅ Same IP on renewal |
-| 🌐 Residential 5GB | **₦9,500** | DataImpulse | 5GB (data never expires) | No expiry | ✅ Unlimited rollover — data stays until used |
-| 📱 Mobile 4G 5GB | **₦20,000** | DataImpulse | 5GB | 30-day window | ❌ No rollover — unused GB lost |
+| 🌐 Residential 5GB | **₦9,500** | DataImpulse | 5GB (data never expires) | No expiry | ✅ Unlimited rollover |
+| 📱 Mobile 4G 5GB | **₦20,000** | DataImpulse | 5GB | 30-day window | ❌ No rollover |
 
 ---
 
@@ -60,50 +95,9 @@
 
 | Proxy Type | What Happens | Unused Data/Time |
 |-----------|-------------|-----------------|
-| **ISP / DC** | Same IP extended | Rollover: YES — same IP kept |
-| **Residential** | Fresh GB allocation | Rollover: YES — data never expires, stays until used |
-| **Mobile** | Fresh GB allocation | Rollover: NO — old unused GB LOST |
-
-### ISP / DC — Renewal
-
-| Situation | What Happens | Customer Action Needed? |
-|-----------|-------------|------------------------|
-| **IP still active** (not expired) | Same IP extended, same credentials | ❌ No — seamless |
-| **IP expired** (past expiry date) | NEW proxy generated, NEW credentials | ✅ Yes — update settings |
-
-### Residential — Renewal
-
-| Situation | What Happens | Unused Data |
-|-----------|-------------|-------------|
-| **Data remaining** | GB pool stays active | ✅ Previous GB preserved — data never expires |
-| **Data exhausted** | Must purchase more GB | GB pool depleted |
-
-```
-💡 RESIDENTIAL TIP: Your data never expires!
-Buy 5GB today, use 2GB — you still have 3GB
-left whenever you're ready. No pressure!
-```
-
-### Mobile — Renewal
-
-| Situation | What Happens | Unused Data |
-|-----------|-------------|-------------|
-| **Data remaining** | Fresh GB allocated — old unused GB LOST | ❌ Previous GB gone |
-| **Data exhausted** | Proxy stops — must top up or renew | 0GB remaining |
-
-```
-⚠️ MOBILE RENEWAL IMPORTANT:
-Renewing your mobile proxy = fresh GB allocation.
-Any UNUSED GB from your current plan is LOST.
-
-Example:
-→ You have 3GB left on your current plan
-→ You renew early
-→ New 5GB starts — old 3GB is GONE ❌
-
-TIP: Renew AFTER data runs out
-or on expiry day to avoid losing data!
-```
+| **ISP / DC** | Same IP extended | Rollover: YES |
+| **Residential** | Fresh GB added to pool | Rollover: YES — data never expires |
+| **Mobile** | Fresh GB allocated | Rollover: NO — old unused GB LOST |
 
 ---
 
@@ -113,8 +107,8 @@ or on expiry day to avoid losing data!
 
 | Column | ISP / DC | Residential | Mobile |
 |--------|----------|------------|--------|
-| Data Total (GB) | N/A | ✅ e.g., 5GB | ✅ e.g., 5GB |
-| Data Remaining (GB) | N/A | ✅ decrements | ✅ decrements |
+| Data Total (GB) | N/A | ✅ | ✅ |
+| Data Remaining (GB) | N/A | ✅ | ✅ |
 | Data Expires | N/A | ❌ Never | ✅ 30-day window |
 
 ### Status Values
@@ -133,205 +127,24 @@ or on expiry day to avoid losing data!
 ### ISP / DC — Time-Based
 
 ```
-Daily cron:
-  ↓
-  [IF ISP or DC proxy]
-    → Check: Expires At ≤ 7 days?
-      → YES: Send expiry reminder + RANDOM IP TIP
+Daily cron: Check Expires At ≤ 7 days → Send reminder
 ```
 
 ### Residential — Data-Based (No Expiry!)
 
 ```
-Daily cron:
-  ↓
-  [IF Residential proxy]
-    → Check: Data Remaining ≤ 1GB?
-      → YES: Send data warning + RANDOM IP TIP
-    → Check: Data Remaining == 0GB?
-      → YES: Send exhausted notice + RANDOM IP TIP
-    → NO expiry reminder (data never expires!)
+Daily cron: Check Data Remaining ≤ 1GB → Send data warning
+No expiry reminder (data never expires!)
 ```
 
 ### Mobile — Dual (Data + Time)
 
 ```
 Daily cron:
-  ↓
-  [IF Mobile proxy]
-    → Check: Data Remaining ≤ 1GB?
-      → YES: Send data warning + RANDOM IP TIP
-    → Check: Data Remaining == 0GB?
-      → YES: Send exhausted + proxy inactive + RANDOM IP TIP
-    → Check: Expires At ≤ 3 days AND Data Remaining > 0GB?
-      → YES: Send expiry reminder + RANDOM IP TIP
+→ Data Remaining ≤ 1GB → Send warning
+→ Data Remaining == 0GB → Send exhausted notice
+→ Expires At ≤ 3 days AND Data Remaining > 0GB → Send expiry reminder
 ```
-
----
-
-## Reminder Message Templates
-
-**ISP/DC — Expiry reminder:**
-```
-👋 Hey [Name]!
-
-Your proxies are expiring soon!
-
-[ALL ISP/DC proxies with ≤7 days — NO LIMIT]
-
-💡 TIP: Renew before expiry to keep
-the same IP!
-
-Want to renew? Just say "Renew" 🔄
-```
-
-**Residential — Data warning (≤1GB):**
-```
-📊 Data Running Low — [Name]
-
-Your Residential Proxy:
-🔗 IP: [IP]
-📦 [X]GB remaining
-
-⚠️ Running low on data!
-
-💡 Good news: Residential data never
-expires! Top up whenever you're ready.
-
-Top up now — say "Top up residential" 🌐
-```
-
-**Residential — Data exhausted (0GB):**
-```
-⚠️ DATA EXHAUSTED — [Name]
-
-Your Residential Proxy:
-🔗 IP: [IP]
-📦 0GB remaining
-
-🔴 Your proxy is currently inactive.
-
-💡 Your data was yours to keep —
-it never expires! Top up to restore:
-
-→ Say "Top up residential" 🌐
-```
-
-**Mobile — Data warning (≤1GB):**
-```
-📊 Data Alert — [Name]
-
-Your Mobile Proxy:
-🔗 IP: [IP]
-📦 [X]GB remaining | Expires: [DATE]
-
-⚠️ Running low on data!
-
-⚠️ Remember: Mobile data does NOT
-roll over. Unused GB is lost!
-
-Top up now — say "Top up mobile" 📱
-```
-
-**Mobile — Data exhausted (0GB):**
-```
-⚠️ DATA EXHAUSTED — [Name]
-
-Your Mobile Proxy:
-🔗 IP: [IP]
-📦 0GB remaining
-⏰ Expires in [X] days
-
-🔴 Your proxy is currently INACTIVE.
-
-⚠️ Unused GB is LOST when you top up!
-
-Top up now to restore access!
-Say "Top up mobile" 📱
-```
-
-**Mobile — Data exhausted AND expiry approaching:**
-```
-⚠️ DATA EXHAUSTED + EXPIRY WARNING — [Name]
-
-Your Mobile Proxy:
-🔗 IP: [IP]
-📦 0GB remaining
-⏰ Expires in 3 days
-
-🔴 Proxy is INACTIVE.
-
-Two options:
-1️⃣ Top up now — restore for 30 days
-2️⃣ Wait for expiry — renew with fresh GB
-
-Which do you prefer? 📱
-```
-
----
-
-## Top-Up Flows
-
-### Residential — Top-Up
-
-```
-Customer: "Top up residential"
-  ↓
-Bunche: Check customer has residential proxy
-  ↓
-Bunche: "How much data do you want to add?
-
-         5GB = ₦9,500
-         10GB = ₦18,000
-         
-         💡 Good news: Residential data
-         never expires! Your data stays
-         until you use it."
-
-Payment confirmed
-  → Provider API: Add GB to existing order
-  → Google Sheets Update: Data Remaining += [new GB]
-  → WhatsApp: "✅ Top up confirmed!
-     🔗 IP: [IP]
-     📦 +[X]GB added. Total: [Y]GB remaining.
-     💡 Your data never expires!
-     {RANDOM IP TIP}"
-```
-
-### Mobile — Top-Up
-
-```
-Customer: "Top up mobile"
-  ↓
-Bunche: Check customer has mobile proxy
-  ↓
-Bunche: "How much data do you want to add?
-
-         5GB = ₦20,000
-         10GB = ₦38,000
-         
-         ⚠️ Note: Any unused GB from
-         your current plan will be LOST
-         when you top up!"
-
-Customer: "5GB"
-  ↓
-Payment confirmed
-  → Provider API: Add GB to existing order
-  → Google Sheets Update: Data Remaining = 5GB (new)
-  → WhatsApp: "✅ Top up confirmed!
-     🔗 IP: [IP]
-     📦 5GB fresh allocation
-     ⏰ Expires: [NEW DATE]
-     ⚠️ Old unused GB was lost.
-     {RANDOM IP TIP}"
-```
-
----
-
-## Expiry Date Normalization (ISP/DC)
-
-All ISP or DC proxies from the same order share the SAME expiry date (normalized at fulfillment).
 
 ---
 
@@ -342,72 +155,42 @@ All ISP or DC proxies from the same order share the SAME expiry date (normalized
 ```
 💡 DID YOU KNOW?
 
-🌐 ISP proxies use real home/office IP
-addresses — they look like a regular
-internet user to websites and platforms.
+🌐 ISP proxies use real home/office IP addresses.
 
-📱 Mobile proxies use real 4G/5G
-networks. They rotate through thousands
-of real mobile carrier IPs.
+📱 Mobile proxies use real 4G/5G networks.
 
-🏢 Datacenter IPs come from servers —
-fast and cheap, but some platforms
-spot them more easily.
+🏢 Datacenter IPs come from servers — fast and cheap.
 
-🔄 Residential proxies bounce your
-traffic through real home devices.
-Hardest to detect!
+🔄 Residential proxies bounce through real home devices.
 
-🕐 ISP proxies stay stable longer
-than mobile proxies. Good for long
-sessions.
+🕐 ISP proxies stay stable longer than mobile.
 
-🌍 Different countries have different
-IP reputations. US and UK IPs are
-among the most trusted globally.
+🌍 US and UK IPs are among the most trusted.
 
-📺 Some streaming platforms check
-IP addresses against GPS data from
-your phone — ISP proxies pass this.
+📺 Some platforms check IPs against GPS data.
 
-💰 High-trust IPs (US/UK) cost more
-because they're less likely to be
-flagged by platforms.
+💰 High-trust IPs cost more because they're less likely flagged.
 
-🔒 Using a proxy hides your real
-IP from websites — they only see
-the proxy IP.
+🔒 Using a proxy hides your real IP.
 
 📡 Proxy speed depends on location.
-A UK proxy in Nigeria is slower
-than a local proxy. Choose wisely!
 
-⚡ Datacenter proxies are fastest —
-great for automation and bots.
-But ISP proxies blend in better.
+⚡ Datacenter proxies are fastest — great for automation.
 
 🌐 ISP = Internet Service Provider.
-These are the IPs you get at home.
-Most platforms trust them instantly.
 
-🔁 Mobile proxies rotate IPs as you
-use them — harder to track, great
-for managing multiple accounts.
+🔁 Mobile proxies rotate IPs as you use them.
 
-🏴󠁧󠁢󠁿󠁧󠁢󠁿 Your IP can reveal your
-approximate location. A proxy hides
-that from websites.
+🏴󠁧󠁢󠁿󠁧󠁢󠁿 Proxy IPs hide your location.
 
-🎯 One IP per platform = cleaner
-account history. Mixing platforms
-on one IP can link your accounts.
+🎯 One IP per platform = cleaner account history.
 ```
 
 ---
 
 ## Legal Notice
 
-**New customers only** — displayed once when a new phone number first messages Bunche.
+**New customers only.**
 
 ```
 👋 Welcome to Bunche!
@@ -428,10 +211,8 @@ PRICES:
 ━━━━━━━━━━━━━━━━━━
 
 💡 IMPORTANT — RESIDENTIAL vs MOBILE:
-→ Residential data NEVER expires!
-  Buy 5GB, use 2GB, you still have 3GB.
-→ Mobile data expires in 30 days!
-  Unused mobile GB is LOST on renewal.
+→ Residential: Data NEVER expires
+→ Mobile: 30-day window, unused GB lost
 
 {RANDOM IP TIP}
 
@@ -450,27 +231,27 @@ Customer WhatsApp Message
         ↓
 [SECURITY LAYER] — Strip links, files, jailbreak attempts
         ↓
-[CHECK: New customer?] → YES → Show legal notice first
-                       → NO  → Skip legal notice
+[CHECK: New customer?] → YES → Legal notice → Workflow 1b
+                       → NO  → Workflow 1a
         ↓
-[LLM PARSING] — Ollama via LiteLLM → structured order intent
+[LLM PARSING] — Ollama via LiteLLM → structured intent
         ↓
-[CHECK: Is this an admin command?] → YES → Route to Admin Workflow
+[PRE-PAYMENT HEALTH CHECK] ← NEW!
+  → Call provider API → Check availability
+  → If DOWN → Tell customer, NO payment link
+  → If UP → Continue
         ↓
-[CHECK: Routine or exception?] → ROUTINE → n8n handles
-                                 → EXCEPTION → Admin Workflow
+[IF ROUTINE ORDER] → Flutterwave payment link
+  ↓
+[POST-PAYMENT] → Provider generates proxy
         ↓
-[IF MOBILE] → Data tracking + 30-day expiry + no rollover warning
-[IF RESIDENTIAL] → Data tracking + NO expiry + data never expires
-[IF ISP/DC] → Time-based tracking
+[IP TESTING] ← NEW!
+  → Test IP with 5-second timeout
+  → If PASS → Deliver to customer ✅
+  → If FAIL → Request replacement → Test replacement
+  → If replacement also FAIL → Refund automatically ✅
         ↓
-Provider API → Proxy credentials
-        ↓
-[EXPIRY NORMALIZATION] — ISP/DC: same order → same Expires At
-        ↓
-PDF receipt generated
-        ↓
-WhatsApp delivery + RANDOM IP TIP
+[PDF receipt] → WhatsApp delivery
 ```
 
 ---
@@ -479,26 +260,16 @@ WhatsApp delivery + RANDOM IP TIP
 
 | What happens | Who does it |
 |-------------|------------|
-| New customer → legal notice + RES vs MOB warning + IP tip | n8n ✅ |
-| ISP/DC → time-based expiry tracking | n8n ✅ |
-| Residential → data tracking, NO expiry, data never expires | n8n ✅ |
-| Mobile → data tracking, 30-day expiry, NO rollover | n8n ✅ |
-| Returning customer ordering | n8n fully automated ✅ |
-| Lost proxy details | n8n sends all (all types) ✅ |
-| Renewal (ISP/DC — IP active) | Same IP extended ✅ |
-| Renewal (ISP/DC — IP expired) | New proxy generated ✅ |
-| Renewal (Residential) | Fresh GB, old data preserved ✅ |
-| Renewal (Mobile) | Fresh GB, old unused GB LOST ⚠️ |
-| Top up (Residential) | GB added, data never expires ✅ |
-| Top up (Mobile) | GB added, proxy reactivated ⚠️ old GB lost |
-| Data warning (RES/Mobile ≤1GB) | n8n sends warning ✅ |
-| Data exhausted (RES/Mobile 0GB) | n8n sends inactive notice ✅ |
-| Expiry reminder (ISP/DC ≤7 days) | n8n sends reminder ✅ |
-| Expiry reminder (Mobile ≤3 days) | n8n sends reminder ✅ |
-| Reminder shows ALL proxies | NO LIMIT ✅ |
-| Expiry date normalization (ISP/DC) | Same order → same Expires At ✅ |
-| Refund request (proxy not yet sent) | n8n auto-approves ✅ |
-| Refund request (proxy already sent) | n8n declines → admin ⚠️ |
+| Pre-payment health check | n8n checks provider before payment link ✅ |
+| Provider down → No payment link | n8n tells customer, no charge ✅ |
+| IP testing before delivery | n8n tests every IP (5s timeout) ✅ |
+| IP fails → replacement | n8n requests new IP ✅ |
+| Replacement also fails → refund | n8n refunds automatically ✅ |
+| ISP/DC → time-based tracking | n8n ✅ |
+| Residential → data never expires | n8n ✅ |
+| Mobile → 30-day, no rollover | n8n ✅ |
+| Refund request (not our fault) | n8n auto-approves ✅ |
+| Refund request (our fault) | n8n declines → admin ⚠️ |
 | Ban claim with screenshot | Admin review ⚠️ |
 | Admin commands | Admin handles ⚠️ |
 
@@ -513,10 +284,11 @@ WhatsApp delivery + RANDOM IP TIP
 | `Reject ORD-XXXXX [reason]` | Reject with reason |
 | `Block [phone] [reason]` | Block customer |
 | `Unblock [phone]` | Unblock customer |
-| `Details ORD-XXXXX` | Full order details (data for RES/Mobile) |
+| `Details ORD-XXXXX` | Full order details |
 | `Refund ORD-XXXXX` | Initiate refund (exemption only) |
 | `Force-Refund ORD-XXXXX` | Admin override |
 | `Pending` | List all pending actions |
+| `Provider Status` | Check health of all providers |
 
 ---
 
@@ -539,25 +311,34 @@ Edit Fields: Extract from, msg_body, msg_id, timestamp
 
 ```
 intent == "order":
-  → Google Sheets Read: Lookup price
+  → Google Sheets Read: Lookup price + country
+  → [PRE-PAYMENT HEALTH CHECK] ← NEW!
+    → Call Proxy-Seller / DataImpulse API
+    → Check: Is country/provider available?
+      → ❌ UNAVAILABLE or DOWN:
+        → WhatsApp: "Sorry, [product] for [country] is
+           temporarily unavailable right now.
+           Please try again in a few minutes 🙏
+           We'll notify you when it's back!"
+        → Webhook Response: HTTP 200
+        → END
+      → ✅ AVAILABLE:
+        → Continue ↓
   → HTTP Request → Flutterwave POST /payments
   → Google Sheets Append: Pending_Orders (awaiting_payment)
-  → WhatsApp: "Payment link sent. ₦[price]"
+  → WhatsApp: "Payment link sent! ₦[price] 💳"
 
 intent == "lost proxy details":
-  → Google Sheets Read: Get ALL proxies — all types — NO LIMIT
+  → Google Sheets Read: Get ALL proxies — NO LIMIT
   → WhatsApp: Send all proxy details + RANDOM IP TIP
 
 intent == "my proxies" OR "check data":
   → Google Sheets Read: Get ALL proxies — NO LIMIT
-  → For Residential: Show data remaining + "data never expires"
-  → For Mobile: Show data remaining + expiry date
-  → For ISP/DC: Show expiry date
   → WhatsApp: All proxies + status + RANDOM IP TIP
 
 intent == "check expiry" OR "days left":
   → Google Sheets Read: Get ALL proxies — NO LIMIT
-  → Show all with days until expiry (ISP/DC/Mobile) or data remaining (Residential)
+  → Show all with days / data remaining
 
 intent == "ban reported" OR "ip blocked":
   → Was order within 24hrs?
@@ -576,27 +357,32 @@ intent == "renew":
   → Present all with status
   → Customer selects which to renew
   ↓
+  [PRE-PAYMENT HEALTH CHECK] ← For renewals too!
+    → Check provider availability
+      → ❌ UNAVAILABLE: "Sorry, service is down. Try again shortly."
+      → ✅ AVAILABLE: Continue
+  ↓
   [IF ISP/DC — IP active]: Extend same IP (+30 days)
   [IF ISP/DC — IP expired]: Generate NEW proxy
-  [IF Residential]: Fresh GB, old data preserved (data never expires)
-  [IF Mobile]: Fresh GB, old unused GB LOST → warn customer!
+  [IF Residential]: Fresh GB, old data preserved
+  [IF Mobile]: Fresh GB, old unused GB LOST
   → WhatsApp: Confirmation + type-specific warning + RANDOM IP TIP
 
 intent == "top up residential":
-  → Google Sheets Read: Find residential proxy for customer
+  → Google Sheets Read: Find residential proxy
   → Present top-up options (5GB / 10GB)
-  → "💡 Your data never expires — it stays until used!"
+  → [PRE-PAYMENT HEALTH CHECK] → Check DataImpulse availability
   → Generate payment link
   → Payment confirmed → Add GB → Data Remaining updated
-  → WhatsApp: "Top up confirmed! +[X]GB. Total: [Y]GB remaining. 💡" + RANDOM IP TIP
+  → WhatsApp: "✅ Top up confirmed!" + RANDOM IP TIP
 
 intent == "top up mobile":
-  → Google Sheets Read: Find mobile proxy for customer
+  → Google Sheets Read: Find mobile proxy
   → Present top-up options (5GB / 10GB)
-  → "⚠️ Unused GB will be LOST on top-up!"
+  → [PRE-PAYMENT HEALTH CHECK] → Check DataImpulse availability
   → Generate payment link
   → Payment confirmed → Add GB → Proxy reactivated
-  → WhatsApp: "Top up confirmed! ⚠️ Old unused GB was lost." + RANDOM IP TIP
+  → WhatsApp: "✅ Top up confirmed! ⚠️" + RANDOM IP TIP
 
 intent == "how to use" OR "setup proxy" OR "configure":
   → Send proxy setup guide + RANDOM IP TIP
@@ -609,8 +395,12 @@ Default:
 
 ```
 intent == "order":
-  → Price check → Flutterwave payment link
-  → WhatsApp: "Payment link sent."
+  → Legal notice (already shown) — continue to order
+  → [PRE-PAYMENT HEALTH CHECK] → Check provider availability
+    → ❌ UNAVAILABLE: "Sorry, [product] is temporarily unavailable. Try again in a few minutes."
+    → ✅ AVAILABLE: Continue
+  → Google Sheets Read: Lookup price
+  → Flutterwave payment link → WhatsApp: "Payment link sent."
   → Log consent (first interaction)
 
 intent == "help":
@@ -647,10 +437,8 @@ PRICES:
 ━━━━━━━━━━━━━━━━━━
 
 💡 IMPORTANT — RESIDENTIAL vs MOBILE:
-→ Residential data NEVER expires!
-  Buy 5GB, use 2GB, you still have 3GB.
-→ Mobile data expires in 30 days!
-  Unused mobile GB is LOST on renewal.
+→ Residential: Data NEVER expires!
+→ Mobile: 30-day window, unused GB lost!
 
 {RANDOM IP TIP}
 
@@ -704,21 +492,10 @@ TYPE "help" for support.
 💡 IP TIPS:
 ━━━━━━━━━━━━━━━━━━
 ✅ One IP per device or per account.
-   Risky to share 1 IP across many
-   devices.
-
-✅ Use different IPs for different
-   platforms (UK IP for one platform,
-   US IP for another).
-
-🔄 ISP/DC: Renew BEFORE expiry to
-   keep the same IP.
-
-🌐 Residential: Data never expires!
-   Top up whenever you're ready.
-
-📱 Mobile: Renew AFTER data runs out
-   or on expiry — unused GB is LOST!
+✅ Use different IPs for different platforms.
+🔄 ISP/DC: Renew BEFORE expiry to keep same IP.
+🌐 Residential: Data never expires! Top up anytime.
+📱 Mobile: Renew AFTER data runs out — unused GB lost!
 
 {RANDOM IP TIP}
 ```
@@ -751,70 +528,171 @@ Google Sheets: Check if customer exists
   ↓
 [IF NEW ORDER (not renewal)]
   → Provider API → Proxy credentials
-  → IF fails → Try backup provider → All fail: Refund → [ADMIN ALERT]
+  → IF fails → Try backup provider
+    → All fail: Refund immediately → [ADMIN ALERT] → END
+  ↓
+  [IP TESTING] ← NEW!
+    → Test IP with 5-second timeout
+    → If IP responds: Continue ↓
+    → If IP fails:
+      → Request replacement from provider
+      → Test replacement (5s timeout)
+        → If replacement PASSES: Continue ↓
+        → If replacement FAILS:
+          → Refund immediately → [ADMIN ALERT]
+          → WhatsApp: "We're so sorry! The proxy
+             we generated had an issue. Your payment
+             has been automatically refunded.
+             We'll notify you when service is restored. 🙏"
+          → Respond HTTP 200 → END
   ↓
   [IF ISP or DC]:
     → [EXPIRY NORMALIZATION] — All → same Expires At
-    → Google Sheets: Data = "unlimited", Data Remaining = "N/A"
-    → Google Sheets Update: Status = "fulfilled"
+    → Google Sheets: Status = "fulfilled"
     → [PDF] → WhatsApp: Details + Receipt + RANDOM IP TIP
   ↓
   [IF RESIDENTIAL]:
     → Google Sheets: Data Total = [X]GB, Data Remaining = [X]GB, Data Expires = "never"
-    → Google Sheets Update: Status = "active"
-    → [PDF] → WhatsApp: Details + Receipt + "data never expires" notice + RANDOM IP TIP
+    → Google Sheets: Status = "active"
+    → [PDF] → WhatsApp: Details + Receipt + "data never expires" + RANDOM IP TIP
   ↓
   [IF MOBILE]:
     → Google Sheets: Data Total = [X]GB, Data Remaining = [X]GB, Data Expires = today + 30 days
-    → Google Sheets Update: Status = "active"
+    → Google Sheets: Status = "active"
     → [PDF] → WhatsApp: Details + Receipt + mobile warning + RANDOM IP TIP
   ↓
 [IF ISP/DC RENEWAL — IP active]:
-  → Extend Expires At +30 days from today
+  → [IP TESTING] → Test existing IP before extending
+    → If IP still works: Extend +30 days → Send confirmation
+    → If IP fails: Generate replacement → Test → Deliver
   → Google Sheets Update: Status = "fulfilled"
-  → [PDF] → WhatsApp: "Extended! Same IP." + RANDOM IP TIP
+  → WhatsApp: "✅ Extended! Same IP." + RANDOM IP TIP
   ↓
 [IF ISP/DC RENEWAL — IP expired]:
-  → Generate NEW proxy
-  → WhatsApp: "New proxy ready! Update settings." + RANDOM IP TIP
-  → [PDF] → Receipt
+  → Provider API: Generate NEW proxy
+  → [IP TESTING] → Test new IP (5s)
+    → If PASS: Deliver + RANDOM IP TIP
+    → If FAIL: Refund immediately + [ADMIN ALERT]
+  → WhatsApp: "✅ New proxy ready!" + RANDOM IP TIP
   ↓
 [IF RESIDENTIAL RENEWAL]:
-  → Fresh GB allocation added to pool
-  → Google Sheets Update: Data Remaining += [X]GB (old data preserved!)
-  → WhatsApp: "✅ Residential renewed! +[X]GB added.
-     📦 Total remaining: [Y]GB
-     💡 Your data never expires!" + RANDOM IP TIP
-  → [PDF] → Receipt
+  → Fresh GB added to pool
+  → Google Sheets Update: Data Remaining += [X]GB
+  → WhatsApp: "✅ Residential renewed! +[X]GB. 📦 Total: [Y]GB. 💡" + RANDOM IP TIP
   ↓
 [IF MOBILE RENEWAL]:
-  → Fresh GB allocation — old unused GB LOST
+  → Fresh GB — old unused GB LOST
+  → [PRE-PAYMENT HEALTH CHECK] → Check DataImpulse
+    → If DOWN: Refund + notify customer
+    → If UP: Continue
   → Google Sheets Update: Data Total = [X]GB, Data Remaining = [X]GB, Data Expires = today + 30 days
-  → WhatsApp: "✅ Mobile renewed!
-     ⚠️ Old unused GB was lost.
-     📦 [X]GB fresh. Expires: [DATE]." + RANDOM IP TIP
-  → [PDF] → Receipt
+  → WhatsApp: "✅ Mobile renewed! ⚠️ Old unused GB lost." + RANDOM IP TIP
   ↓
 [IF RESIDENTIAL TOP-UP]:
-  → Provider API: Add GB to existing order
+  → [PRE-PAYMENT HEALTH CHECK] → DataImpulse
+    → If DOWN: Refund + notify
+    → If UP: Continue
+  → Provider API: Add GB to order
   → Google Sheets Update: Data Remaining += [X]GB
-  → WhatsApp: "✅ Top up confirmed!
-     +[X]GB added. Total: [Y]GB remaining.
-     💡 Your data never expires!" + RANDOM IP TIP
-  → [PDF] → Receipt
+  → WhatsApp: "✅ Top up confirmed! +[X]GB. Total: [Y]GB. 💡" + RANDOM IP TIP
   ↓
 [IF MOBILE TOP-UP]:
-  → Provider API: Add GB to existing order
-  → Google Sheets Update: Data Remaining = [X]GB (new), Data Expires = today + 30 days
-  → WhatsApp: "✅ Top up confirmed!
-     ⚠️ Old unused GB was lost.
-     📦 [X]GB fresh. Expires: [DATE].
-     Proxy reactivated! ✅" + RANDOM IP TIP
-  → [PDF] → Receipt
-  ↓
-WhatsApp: "⚠️ No refunds once delivered. Replacement within 24hrs if banned."
+  → [PRE-PAYMENT HEALTH CHECK] → DataImpulse
+    → If DOWN: Refund + notify
+    → If UP: Continue
+  → Provider API: Add GB to order
+  → Google Sheets Update: Data Remaining = [X]GB, Data Expires = today + 30 days
+  → WhatsApp: "✅ Top up confirmed! ⚠️" + RANDOM IP TIP
   ↓
 Respond HTTP 200
+```
+
+### IP Testing Code (n8n Code Node)
+
+```javascript
+// IP Connectivity Test — 5 second timeout
+const http = require('http');
+const https = require('https');
+
+function testIP(ip, port, protocol = 'http') {
+  return new Promise((resolve) => {
+    const client = protocol === 'https' ? https : http;
+    const start = Date.now();
+    
+    const req = client.get({
+      host: ip,
+      port: port,
+      timeout: 5000, // 5 second timeout
+      rejectUnauthorized: false,
+    }, (res) => {
+      resolve({ ok: true, latency: Date.now() - start, status: res.statusCode });
+    });
+    
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, reason: 'timeout' });
+    });
+    
+    req.on('error', (e) => {
+      // Try alternative port or method
+      resolve({ ok: false, reason: e.message });
+    });
+  });
+}
+
+// Alternative: TCP socket test
+function testIPSocket(ip, port) {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const start = Date.now();
+    
+    const socket = new net.Socket();
+    socket.setTimeout(5000);
+    
+    socket.connect(port, ip, () => {
+      socket.destroy();
+      resolve({ ok: true, latency: Date.now() - start });
+    });
+    
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve({ ok: false, reason: 'timeout' });
+    });
+    
+    socket.on('error', (e) => {
+      socket.destroy();
+      resolve({ ok: false, reason: e.message });
+    });
+  });
+}
+
+// Main — test with HTTP first, fall back to socket
+async function runTest(ip, port) {
+  // Try HTTP
+  let result = await testIP(ip, port, 'http');
+  if (result.ok) return result;
+  
+  // Fall back to socket (for proxies that don't respond to HTTP)
+  result = await testIPSocket(ip, port);
+  return result;
+}
+
+const proxy = $input.first().json;
+const [ip, port] = proxy.ip_port.split(':').filter(Boolean);
+
+const testResult = await runTest(ip, parseInt(port));
+
+return {
+  json: {
+    order_id: proxy.order_id,
+    ip: ip,
+    port: parseInt(port),
+    test_result: testResult.ok ? 'PASS' : 'FAIL',
+    latency_ms: testResult.latency || null,
+    fail_reason: testResult.reason || null,
+    timestamp: new Date().toISOString()
+  }
+};
 ```
 
 ### Delivery Messages
@@ -830,8 +708,7 @@ Password: [pass]
 
 ⏰ Expires: [DATE]
 
-💡 Renew before expiry to keep
-the same IP!
+💡 Renew before expiry to keep the same IP!
 
 {RANDOM IP TIP}
 
@@ -867,11 +744,10 @@ Password: [pass]
 📦 Data: [X]GB
 ⏰ Expires: [DATE] (30-day window)
 
-⚠️ IMPORTANT — READ THIS:
+⚠️ IMPORTANT:
 → Mobile data expires in 30 days
 → Unused GB is LOST on renewal!
-→ Renew AFTER data runs out to
-  avoid losing unused GB!
+→ Renew AFTER data runs out!
 
 {RANDOM IP TIP}
 
@@ -892,8 +768,8 @@ set up quick security for your next visit:
 Reply "1" or "2" 👇
 ```
 
-**If PIN chosen:** "Reply with your 4-digit PIN 👇"
-**If OTP chosen:** "Got it! Code will be sent when needed. ✅"
+**If PIN:** "Reply with your 4-digit PIN 👇"
+**If OTP:** "Got it! Code will be sent when needed. ✅"
 **Name:** "What should we call you? 👇"
 
 ---
@@ -909,10 +785,24 @@ Parse command:
 "Reject ORD-XXXXX [reason]" → Reject, notify customer
 "Block [phone] [reason]" → Block in Google Sheets
 "Unblock [phone]" → Unblock
-"Details ORD-XXXXX" → Full summary (includes data for RES/Mobile)
+"Details ORD-XXXXX" → Full summary
 "Refund ORD-XXXXX" → Check status → refund or warn
 "Force-Refund ORD-XXXXX" → Admin override, log as exemption
+"Provider Status" → Check all providers → Report to admin
 Default → "Unknown command. Type 'Pending'."
+```
+
+### Provider Status Check (Admin Command)
+
+```
+"Provider Status":
+  → HTTP GET → Proxy-Seller API: Check balance + countries
+    → ✅ OK: "Proxy-Seller: ✅ Working"
+    → ❌ DOWN: "Proxy-Seller: ❌ Down"
+  → HTTP GET → DataImpulse API: Check balance
+    → ✅ OK: "DataImpulse: ✅ Working"
+    → ❌ DOWN: "DataImpulse: ❌ Down"
+  → WhatsApp (admin): Full status report
 ```
 
 ---
@@ -931,38 +821,70 @@ Was order within 24hrs?
 
 ---
 
-## Workflow 5: Provider APIs
+## Workflow 5: Provider APIs + Health Endpoints
 
 ### Proxy-Seller API (ISP + DC)
 
+**Order:**
 ```
 POST https://api.proxy-seller.com/v1/orders
 Body: {"type": "isp", "country": "gb", "quantity": 1, "period": 30}
 Response: {"order_id": "PS-12345", "status": "active", "proxies": [...]}
 ```
 
-### DataImpulse API (Residential)
+**Health Check (Pre-Payment):**
+```
+GET https://api.proxy-seller.com/v1/countries
+GET https://api.proxy-seller.com/v1/balance
+Response: {"countries": [...], "balance": "100.00"}
+→ If balance > 0 AND country in list → AVAILABLE
+→ If balance == 0 OR country not in list → UNAVAILABLE
+→ If API error → UNAVAILABLE
+```
 
+**Health Check (Alternative):**
+```
+GET https://api.proxy-seller.com/v1/order/available?type=isp&country=gb
+→ If returns IPs available → AVAILABLE
+→ If returns empty → UNAVAILABLE
+```
+
+### DataImpulse API (Residential + Mobile)
+
+**Order:**
 ```
 POST https://api.dataimpulse.com/v1/order
 Body: {"type": "residential", "country": "global", "traffic": "5GB"}
-Response: {"order_id": "DI-12345", "status": "active", "data_total": "5GB", "data_used": "0GB", "expires_at": null}
-Note: expires_at = null means data never expires
+Response: {"order_id": "DI-12345", "status": "active", "data_total": "5GB", ...}
 ```
 
-### DataImpulse API (Mobile)
-
+**Health Check (Pre-Payment):**
 ```
-POST https://api.dataimpulse.com/v1/order
-Body: {"type": "mobile", "country": "us", "traffic": "5GB"}
-Response: {"order_id": "DI-67890", "status": "active", "data_total": "5GB", "data_used": "0GB", "expires_at": "2026-07-26"}
+GET https://api.dataimpulse.com/v1/locations
+GET https://api.dataimpulse.com/v1/balance
+Response: {"locations": [...], "balance": "50.00"}
+→ If balance > cost of requested plan → AVAILABLE
+→ If balance < cost → UNAVAILABLE
+→ If API error → UNAVAILABLE
+```
+
+**Quick Ping (Alternative):**
+```
+HEAD https://api.dataimpulse.com/v1/health
+→ 200 OK → AVAILABLE
+→ Error → UNAVAILABLE
 ```
 
 ### Fallback Chain
 
 ```
-Proxy-Seller (ISP/DC) → Fails → [no backup — refund + ADMIN ALERT]
-DataImpulse (RES/Mobile) → Fails → [no backup — refund + ADMIN ALERT]
+Proxy-Seller (ISP/DC) → Fails → [PRE-PAYMENT CHECK CATCHES THIS → No payment link]
+                                       ↓
+                              If fails AFTER payment: Refund + ADMIN ALERT
+
+DataImpulse (RES/Mobile) → Fails → [PRE-PAYMENT CHECK CATCHES THIS → No payment link]
+                                         ↓
+                                If fails AFTER payment: Refund + ADMIN ALERT
 ```
 
 ---
@@ -989,28 +911,11 @@ WhatsApp: "✅ Refund processed. ₦{amount} in 5–7 days."
 ```
 For each customer with active proxies:
   ↓
-  [FOR ISP/DC proxies]:
-    → Get ALL where Status == "fulfilled" AND Expires At ≤ today + 7 days
-    → NO LIMIT
-    → If found: Send ISP/DC expiry reminder + RANDOM IP TIP
+  [FOR ISP/DC]: Expires At ≤ 7 days → Reminder
+  [FOR Residential]: Data Remaining ≤ 1GB → Warning; 0GB → Exhausted
+  [FOR Mobile]: Data ≤ 1GB → Warning; 0GB → Exhausted; Expires ≤ 3 days → Reminder
   ↓
-  [FOR Residential proxies]:
-    → Check Data Remaining ≤ 1GB?
-      → YES: Send data warning + RANDOM IP TIP
-    → Check Data Remaining == 0GB?
-      → YES: Send exhausted notice + RANDOM IP TIP
-    → NO expiry reminder (data never expires!)
-  ↓
-  [FOR Mobile proxies]:
-    → Check Data Remaining ≤ 1GB?
-      → YES: Send data warning + RANDOM IP TIP
-    → Check Data Remaining == 0GB?
-      → YES: Send exhausted + inactive notice + RANDOM IP TIP
-    → Check Expires At ≤ 3 days AND Data Remaining > 0GB?
-      → YES: Send expiry reminder + RANDOM IP TIP
-  ↓
-  [IF nothing to remind]:
-    → Do nothing
+  [IF nothing to remind]: Do nothing
 ```
 
 ---
@@ -1084,7 +989,13 @@ MOBILE proxies:
 - Per GB billing — data pool
 - 30-day window to use data
 - Unused GB is LOST on renewal or top-up!
-- If data runs to 0GB, proxy stops working even if days remain
+- If data runs to 0GB, proxy stops working
+
+IMPORTANT — AVAILABILITY:
+- We check provider availability BEFORE you pay
+- If a product is temporarily unavailable, we tell you before payment
+- You only pay when we can deliver
+- Every IP is tested before sending to you
 
 ALWAYS clarify which product customer wants. Mobile and Residential are different!
 
@@ -1097,29 +1008,29 @@ YOUR JOB:
 6. Always include a RANDOM IP tip when sending proxy details
 
 RANDOM IP TIPS (pick 1 randomly, no repeat until all used):
-- "ISP proxies use real home IP addresses — they look like a regular internet user to websites."
-- "Mobile proxies use real 4G/5G networks and rotate IPs as you use them."
-- "Datacenter proxies are fastest but some platforms spot them more easily."
-- "Residential proxies bounce traffic through real home devices — hardest to detect!"
-- "ISP proxies stay stable longer than mobile proxies — good for long sessions."
-- "US and UK IPs are among the most trusted globally by platforms."
-- "Some streaming platforms check IPs against GPS data — ISP proxies pass this check."
-- "High-trust IPs cost more because they're less likely to be flagged."
-- "Using a proxy hides your real IP from websites."
-- "Proxy speed depends on location. A UK proxy in Nigeria is slower than a local one."
+- "ISP proxies use real home IP addresses."
+- "Mobile proxies use real 4G/5G networks."
+- "Datacenter proxies are fastest but some platforms spot them."
+- "Residential proxies bounce through real home devices."
+- "ISP proxies stay stable longer than mobile."
+- "US and UK IPs are among the most trusted."
+- "Some platforms check IPs against GPS data."
+- "High-trust IPs cost more because they're less likely flagged."
+- "Using a proxy hides your real IP."
+- "Proxy speed depends on location."
 - "Datacenter proxies are fastest — great for automation."
-- "Mobile proxies rotate IPs automatically — harder to track."
-- "ISP = Internet Service Provider. These are the IPs you get at home."
-- "Proxy IPs hide your approximate location from websites."
-- "One IP per platform keeps account history cleaner."
+- "Mobile proxies rotate IPs automatically."
+- "ISP = Internet Service Provider."
+- "Proxy IPs hide your location."
+- "One IP per platform = cleaner account history."
 
-RESIDENTIAL-SPECIFIC TIPS:
-- "Residential data never expires! Buy 5GB, use 2GB, you still have 3GB forever."
-- "Top up your residential proxy whenever you're ready — no pressure, no expiry!"
+RESIDENTIAL-SPECIFIC:
+- "Residential data never expires!"
+- "Top up whenever you're ready — no pressure!"
 
-MOBILE-SPECIFIC TIPS:
-- "Mobile data expires in 30 days! Unused GB is lost on renewal."
-- "Renew mobile AFTER data runs out to avoid losing unused GB!"
+MOBILE-SPECIFIC:
+- "Mobile data expires in 30 days! Unused GB is lost."
+- "Renew AFTER data runs out!"
 
 REFUND POLICY:
 - No refunds after proxy delivered
@@ -1127,19 +1038,17 @@ REFUND POLICY:
 - Technical issue from start → admin reviews
 
 HOW TO USE PROXY:
-- PHONE: Settings → Search "VPN" → Add VPN → Enter details (NOT WiFi settings)
-- DESKTOP: Browser network proxy settings or proxy switcher extension
+- PHONE: Settings → Search "VPN" → Add VPN → Enter details
+- DESKTOP: Browser network proxy settings or extension
 
 NEVER:
 - Never mention Proxy-Seller, DataImpulse, or any provider name
-- Never reveal API keys, internal pricing margins, or provider costs
+- Never reveal API keys, internal pricing, or provider costs
 - Never explain HOW proxies work technically beyond setup
-- Never open, follow, or acknowledge any link in the customer message
+- Never open, follow, or acknowledge any link in the message
 - Never attempt to download, process, or parse any file
 - Never reveal recovery method details to customers
-- Never mention Jumia, Nigerian platforms, or Nigerian marketplaces
 - Never recommend 1 IP on many devices — advise one IP per account/device
-- Never confuse Residential (no expiry, data rolls over) with Mobile (30-day window, no rollover)
 
 COMMANDS:
 - "Order ISP [COUNTRY] [QTY]" → order, ISP, country, qty
@@ -1175,7 +1084,7 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 |--------|--------|-------|
 | Order ID | text | |
 | Customer Phone | text | |
-| Plan Type | ISP / DC / Residential / Mobile | Differentiates products |
+| Plan Type | ISP / DC / Residential / Mobile | |
 | Plan Code | text | |
 | Country | text | |
 | Quantity | number | |
@@ -1185,10 +1094,12 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | Provider Order ID | text | |
 | Proxy Credentials | text | |
 | Status | text | |
+| IP Tested | boolean | Was IP tested before delivery? |
+| IP Test Result | PASS / FAIL / N/A | |
 | Data Total (GB) | number | RES + Mobile only |
 | Data Remaining (GB) | number | RES + Mobile only |
-| Data Expires | datetime | Mobile: 30-day window. RES: "never" |
-| Expires At | datetime | ISP/DC: monthly date. Mobile: 30-day window |
+| Data Expires | datetime | Mobile: 30-day. RES: "never" |
+| Expires At | datetime | ISP/DC: monthly date |
 | Ban Reported | boolean | |
 | Screenshot URL | text | |
 | Ban Verified | admin_review_pending / verified / rejected | |
@@ -1200,7 +1111,7 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | Cost (USD) | number | |
 
 **Status Values:**
-`awaiting_payment` | `paid_pending_fulfillment` | `fulfilled` | `data_low` | `data_exhausted` | `ban_pending_review` | `replaced` | `failed` | `refund_pending` | `refunded` | `rejected` | `cancelled` | `expired`
+`awaiting_payment` | `paid_pending_fulfillment` | `ip_testing` | `ip_test_failed` | `fulfilled` | `data_low` | `data_exhausted` | `ban_pending_review` | `replaced` | `failed` | `refund_pending` | `refunded` | `rejected` | `cancelled` | `expired`
 
 ---
 
@@ -1230,30 +1141,24 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 
 | Rule | Enforced Where |
 |------|---------------|
+| Pre-payment health check | Every order + renewal + top-up |
+| No payment link if provider down | Pre-payment check |
+| IP testing (5s timeout) | Every proxy before delivery |
+| IP fails → replacement | IP testing workflow |
+| Replacement also fails → auto-refund | IP testing workflow |
 | No URLs in customer messages | Security Stripper |
-| No links opened by LLM | System prompt + n8n pre-check |
-| No file downloads | System prompt + n8n pre-check |
 | No provider names revealed | System prompt (LLM) |
 | No injection prompts processed | Security Stripper + system prompt |
 | LLM output validated as JSON | n8n validation node |
-| LLM cannot execute actions | n8n acts on structured output only |
-| Message length limited to 500 chars | Security Stripper |
 | PIN stored hashed | bcrypt hash in Google Sheets |
-| OTP expires in 5 minutes | Timestamp checked |
 | Max 3 verification attempts | Counted before admin escalation |
 | Admin only on exception | Admin Workflow triggered only on exception |
 | No refund after delivery | Workflow enforces — admin override only |
 | Legal notice only on first interaction | Workflow checks new vs returning |
-| Proxy setup: VPN not WiFi | System prompt + guide |
 | Random IP tips | Rotate — 1 per message, no repeat until all used |
-| No Nigerian platforms | Never mention Jumia, Nigerian marketplaces |
 | ISP/DC: Same order → same Expires At | Expiry normalization |
-| ISP/DC: Same IP on renewal | Renewal policy |
 | RES: Data never expires | Every RES message |
-| RES: Top up adds to pool | Top-up flow |
 | Mobile: 30-day window, no rollover | Every mobile message |
-| Mobile: 0GB = proxy inactive | Data exhaustion logic |
-| Mobile: Old GB lost on top-up | Top-up warning |
 
 ---
 
@@ -1279,7 +1184,7 @@ curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
   -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t1","from":"2349000000001","timestamp":"123","text":{"body":"Hi"}}]}}]}]}'
 
-# Order ISP
+# Order ISP — triggers pre-payment health check
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
   -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t2","from":"2349000000001","timestamp":"123","text":{"body":"Order ISP UK 1"}}]}}]}]}'
@@ -1294,7 +1199,7 @@ curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
   -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t4","from":"2349000000001","timestamp":"123","text":{"body":"Order MOB 5GB"}}]}}]}]}'
 
-# Check proxies — shows all types
+# My proxies — shows all types + data remaining
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
   -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t5","from":"2349000000001","timestamp":"123","text":{"body":"My proxies"}}]}}]}]}'
@@ -1308,4 +1213,9 @@ curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
   -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t7","from":"2349000000001","timestamp":"123","text":{"body":"Top up mobile"}}]}}]}]}'
+
+# Admin: Provider status check
+curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
+  -H "Content-Type: application/json" \
+  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t8","from":"2347032981049","timestamp":"123","text":{"body":"Provider Status"}}]}}]}]}'
 ```
