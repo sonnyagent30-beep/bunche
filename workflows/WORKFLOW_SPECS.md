@@ -50,12 +50,47 @@ n8n checks: Is proxy fulfilled?
 
 ---
 
+## Legal Notice
+
+**New customers only** — displayed once when a new phone number first messages Bunche.
+
+```
+👋 Welcome to Bunche!
+
+📄 By using Bunche, you agree to our
+   Terms of Service, Privacy Policy,
+   and Acceptable Use Policy.
+   
+   bunche.com/terms | bunche.com/privacy | bunche.com/aup
+
+━━━━━━━━━━━━━━━━━━
+PRICES:
+🇬🇧🇺🇸🇩🇪 ISP proxies — ₦6,500/mo
+🌏 JP, AU, BR, SG, KR — ₦7,500/mo
+🌐 Residential 5GB — ₦5,000
+📱 Mobile 4G 5GB — ₦20,000
+💻 Datacenter — ₦2,500/mo
+━━━━━━━━━━━━━━━━━━
+
+TO ORDER: Reply with:
+"Order ISP [country] [qty]"
+
+TYPE "help" for support.
+```
+
+Returning customers skip the legal notice — consent was given on first interaction.
+
+---
+
 ## System Architecture
 
 ```
 Customer WhatsApp Message
         ↓
 [SECURITY LAYER] — Strip links, files, jailbreak attempts
+        ↓
+[CHECK: New customer?] → YES → Show legal notice first
+                       → NO  → Skip legal notice
         ↓
 [LLM PARSING] — Ollama via LiteLLM → structured order intent
         ↓
@@ -79,7 +114,7 @@ WhatsApp delivery to customer
 
 | What happens | Who does it |
 |-------------|------------|
-| New order → payment → delivery | n8n fully automated ✅ |
+| New customer → legal notice | n8n ✅ |
 | Returning customer ordering | n8n fully automated ✅ |
 | Lost proxy details (known number) | n8n fully automated ✅ |
 | Refund request (proxy not yet sent) | n8n approves automatically ✅ |
@@ -107,6 +142,7 @@ Admin is Dannion — messaging Bunche from a known admin number.
 | `Unblock [phone]` | Unblock customer |
 | `Details ORD-XXXXX` | Get full order details |
 | `Refund ORD-XXXXX` | Initiate refund (admin exemption only) |
+| `Force-Refund ORD-XXXXX` | Admin override for exceptional cases |
 | `Pending` | List all pending admin actions |
 
 ---
@@ -124,14 +160,14 @@ Edit Fields: Extract from, msg_body, msg_id, timestamp
   ↓
 [CHECK: Is admin number?] → YES → Route to Admin Workflow
   ↓
-[CHECK: Existing customer?] → YES → Workflow 1a
-                           → NO  → Workflow 1b
+[CHECK: Existing customer?] → YES → Skip to Workflow 1a
+                           → NO  → Show legal notice → Workflow 1b
 ```
 
 ### Workflow 1a: Returning Customer
 
 ```
-[EXISTING CUSTOMER]
+[EXISTING CUSTOMER — Skip legal notice]
   ↓
 LLM Request → LiteLLM
   ↓
@@ -167,7 +203,7 @@ intent == "refund" OR "cancel":
       → Webhook Response: HTTP 200
 
 intent == "help":
-  → WhatsApp: Send menu
+  → WhatsApp: Send help menu (no legal notice)
   → Webhook Response: HTTP 200
 
 intent == "renew":
@@ -181,10 +217,10 @@ Default:
   → Webhook Response: HTTP 200
 ```
 
-### Workflow 1b: New Customer (or New Number)
+### Workflow 1b: New Customer (First Interaction)
 
 ```
-[NEW CUSTOMER — first purchase]
+[NEW CUSTOMER — Show legal notice first]
   ↓
 LLM Request → LiteLLM
   ↓
@@ -193,6 +229,11 @@ intent == "order":
   → HTTP Request → Flutterwave POST /payments
   → Google Sheets Append: Pending_Orders (status: awaiting_payment)
   → WhatsApp: "Payment link sent. Amount: ₦[price]"
+  → Google Sheets Append: Customer record with consent logged
+  → Webhook Response: HTTP 200
+
+intent == "help":
+  → WhatsApp: Send legal notice + help menu
   → Webhook Response: HTTP 200
 
 intent == "lost proxy details" OR "need my proxy":
@@ -210,13 +251,35 @@ intent == "lost proxy details" OR "need my proxy":
               → 3 failures → [ADMIN ALERT]
   → Webhook Response: HTTP 200
 
-intent == "help":
-  → WhatsApp: Send menu
-  → Webhook Response: HTTP 200
-
 Default:
   → WhatsApp: LLM reply
   → Webhook Response: HTTP 200
+```
+
+### Legal Notice (First Message Only)
+
+```
+👋 Welcome to Bunche!
+
+📄 By using Bunche, you agree to our
+   Terms of Service, Privacy Policy,
+   and Acceptable Use Policy.
+   
+   bunche.com/terms | bunche.com/privacy | bunche.com/aup
+
+━━━━━━━━━━━━━━━━━━
+PRICES:
+🇬🇧🇺🇸🇩🇪 ISP proxies — ₦6,500/mo
+🌏 JP, AU, BR, SG, KR — ₦7,500/mo
+🌐 Residential 5GB — ₦5,000
+📱 Mobile 4G 5GB — ₦20,000
+💻 Datacenter — ₦2,500/mo
+━━━━━━━━━━━━━━━━━━
+
+TO ORDER: Reply with:
+"Order ISP [country] [qty]"
+
+TYPE "help" for support.
 ```
 
 ---
@@ -259,6 +322,7 @@ Google Sheets Read Row: Check if customer exists (by phone)
   → If PIN chosen: Wait for 4-digit PIN → Store hash
   → WhatsApp: "Got it! What's your name?"
   → Wait for name → Store in Customers sheet
+  → Google Sheets: Log consent (ToS/Privacy/AUP agreed at first message)
   ↓
 [IF RETURNING CUSTOMER]
   → No recovery setup — skip
@@ -280,7 +344,7 @@ Google Sheets Append/Update: Add/update Customer
   ↓
 WhatsApp Send Message: Proxy details + PDF receipt
   ↓
-[IMPORTANT] → WhatsApp: "⚠️ No refunds once proxy is delivered. Replacement only within 24hrs if banned. See 'Help' for more."
+[IMPORTANT] → WhatsApp: "⚠️ No refunds once proxy is delivered. Replacement only within 24hrs if banned."
   ↓
 Webhook Response: HTTP 200
 ```
@@ -372,17 +436,14 @@ Edit Fields: Extract from, msg_body
 "Refund ORD-XXXXX":
   → Google Sheets Read: Check order status
     → If Status == "fulfilled":
-      → WhatsApp (admin): "⚠️ Proxy already delivered for ORD-XXXXX.
-                           Refunds are not available unless there's
-                           a verified technical issue.
-                           Reply 'Force-Refund ORD-XXXXX' to override."
+      → WhatsApp (admin): "⚠️ Proxy already delivered. Refunds not available unless verified technical issue. Reply 'Force-Refund ORD-XXXXX' to override."
     → If Status == "awaiting_payment" or "paid_pending_fulfillment":
       → HTTP Request → Flutterwave: Cancel/refund
       → Google Sheets Update: Status = "refunded"
       → WhatsApp (admin): "✅ Refunded — ORD-XXXXX"
 
 "Force-Refund ORD-XXXXX":
-  → Only works for admin — override for exceptional cases
+  → Admin override for exceptional cases
   → HTTP Request → Flutterwave: Initiate refund
   → Google Sheets Update: Status = "refunded", Notes = "Admin override — exemption"
   → WhatsApp (admin): "✅ Force-refunded — ORD-XXXXX (exemption)"
@@ -676,6 +737,9 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | Support Notes | text |
 | Blocked | boolean |
 | Blocked Reason | text |
+| Consent Given | boolean |
+| Consent Version | text |
+| Consent At | datetime |
 | Created At | datetime |
 
 ---
@@ -697,6 +761,7 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | Max 3 verification attempts | Counted before admin escalation |
 | Admin only on exception | Admin Workflow triggered only on exception |
 | No refund after delivery | Workflow enforces — admin override only |
+| Legal notice only on first interaction | Workflow checks new vs returning |
 
 ---
 
@@ -716,15 +781,15 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 ## Testing
 
 ```bash
-# Scenario 1: Returning customer orders
+# Scenario 1: New customer first message — sees legal notice
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
-  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t1","from":"2349000000001","timestamp":"123","text":{"body":"Order ISP UK 1"}}]}}]}]}'
+  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t1","from":"2349000000001","timestamp":"123","text":{"body":"Hi"}}]}}]}]}'
 
-# Scenario 2: New customer, first purchase
+# Scenario 2: Returning customer — skips legal notice
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
-  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t2","from":"2349000000002","timestamp":"123","text":{"body":"Order ISP UK 1"}}]}}]}]}'
+  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t2","from":"2349000000001","timestamp":"123","text":{"body":"Order ISP UK 1"}}]}}]}]}'
 
 # Scenario 3: Admin checks pending
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
