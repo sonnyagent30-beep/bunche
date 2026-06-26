@@ -3,6 +3,53 @@
 
 ---
 
+## Refund Policy
+
+**⚠️ STRICT: No refunds after proxy is generated and delivered.**
+
+> Once a proxy IP is generated and sent to the customer, the sale is FINAL.
+> Refunds are only considered in specific exempt cases listed below.
+
+### Exemptions — Refunds ARE Allowed
+
+| Case | Description | Who Approves |
+|------|-------------|--------------|
+| **Provider API failure** | Proxy never worked from the start | Admin — automatic |
+| **Wrong IP delivered** | Wrong country/spec sent | Admin |
+| **Fraudulent order** | Order placed with stolen payment | Admin |
+| **Duplicate charge** | Same order charged twice | Admin — automatic |
+| **Admin-approved exemption** | Exceptional circumstance | Admin only |
+
+### Non-Exemptions — NO Refund
+
+| Case | Reason |
+|------|--------|
+| "I changed my mind" | Proxy already generated and usable |
+| "Platform banned my IP" | Outside our control — see replacement policy |
+| "I don't need it anymore" | Service was delivered |
+| "Found cheaper elsewhere" | Not our concern |
+| Customer claims it doesn't work | Must prove it never worked from the start |
+| Account banned by platform | Platform decision — not a proxy defect |
+
+### Refund Process
+
+```
+Customer requests refund
+        ↓
+n8n checks: Is proxy fulfilled?
+  → NO (not yet generated): Approve refund automatically
+  → YES (already delivered): 
+    → WhatsApp: "Refunds are not available after
+                 a proxy is delivered. If your proxy
+                 has a technical issue, please send
+                 a screenshot and we'll review."
+    → If customer insists: [ADMIN ALERT]
+      → Admin reviews → decides if exemption applies
+      → If approved: Admin initiates refund via command
+```
+
+---
+
 ## System Architecture
 
 ```
@@ -35,11 +82,12 @@ WhatsApp delivery to customer
 | New order → payment → delivery | n8n fully automated ✅ |
 | Returning customer ordering | n8n fully automated ✅ |
 | Lost proxy details (known number) | n8n fully automated ✅ |
+| Refund request (proxy not yet sent) | n8n approves automatically ✅ |
+| Refund request (proxy already sent) | n8n declines → admin reviews ⚠️ |
 | Ban claim with screenshot | Admin review needed ⚠️ |
 | Deceptive customer suspected | Admin review needed ⚠️ |
 | New number claiming to be returning | Admin review needed ⚠️ |
 | PIN/OTP fails 3x | Admin review needed ⚠️ |
-| Refund needed | Admin approves first ⚠️ |
 | Admin commands | Admin handles ⚠️ |
 
 ---
@@ -53,12 +101,12 @@ Admin is Dannion — messaging Bunche from a known admin number.
 | Command | What it does |
 |---------|-------------|
 | `Admin` | Show all pending actions |
-| `Approve ORD-XXXXX` | Approve replacement/refund |
+| `Approve ORD-XXXXX` | Approve replacement/refund (if exemption applies) |
 | `Reject ORD-XXXXX [reason]` | Reject with optional reason |
 | `Block [phone] [reason]` | Block customer |
 | `Unblock [phone]` | Unblock customer |
 | `Details ORD-XXXXX` | Get full order details |
-| `Refund ORD-XXXXX` | Initiate refund |
+| `Refund ORD-XXXXX` | Initiate refund (admin exemption only) |
 | `Pending` | List all pending admin actions |
 
 ---
@@ -76,8 +124,8 @@ Edit Fields: Extract from, msg_body, msg_id, timestamp
   ↓
 [CHECK: Is admin number?] → YES → Route to Admin Workflow
   ↓
-[CHECK: Existing customer?] → YES → Return to Workflow 1a
-                           → NO  → Return to Workflow 1b
+[CHECK: Existing customer?] → YES → Workflow 1a
+                           → NO  → Workflow 1b
 ```
 
 ### Workflow 1a: Returning Customer
@@ -100,13 +148,23 @@ intent == "lost proxy details":
   → Webhook Response: HTTP 200
 
 intent == "ban reported" OR "ip blocked":
-  → WhatsApp: "I'm sorry. Please send a screenshot
-               of the ban message (within 24hrs of purchase)."
-  → Wait for screenshot
-  → Save screenshot to storage
-  → Google Sheets Update: Status = "ban_pending_review"
-  → [ADMIN ALERT] → Alert admin with screenshot + order details
-  → Webhook Response: HTTP 200
+  → Check: Was order within 24hrs?
+    → YES: WhatsApp: "I'm sorry. Please send a screenshot of the ban message."
+      → Wait for screenshot → Save → Google Sheets Update: "ban_pending_review"
+      → [ADMIN ALERT] → Webhook Response: HTTP 200
+    → NO: WhatsApp: "I'm sorry, replacement is only available within 24hrs of purchase. If your IP has issues, please describe them."
+      → Webhook Response: HTTP 200
+
+intent == "refund" OR "cancel":
+  → Google Sheets Read: Get order status
+    → Status == "awaiting_payment":
+      → HTTP Request → Flutterwave: Cancel payment link
+      → Google Sheets Update: Status = "cancelled"
+      → WhatsApp: "✅ Order cancelled. No charges made."
+    → Status == "fulfilled":
+      → WhatsApp: "⚠️ Refunds are not available after a proxy is delivered. If there's a technical issue, please send a screenshot and we'll review."
+      → If customer continues: [ADMIN ALERT]
+      → Webhook Response: HTTP 200
 
 intent == "help":
   → WhatsApp: Send menu
@@ -144,12 +202,12 @@ intent == "lost proxy details" OR "need my proxy":
         → PIN entered → verify against stored hash
           → Match: Send proxy details
           → No match: "Incorrect PIN. Try again."
-            → 3 failures → [ADMIN ALERT] → WhatsApp: "Verification failed. Admin will contact you."
+            → 3 failures → [ADMIN ALERT]
         → OTP chosen → Send code to WhatsApp
           → Code entered → verify
             → Match within 5 mins: Send proxy details
             → Expired/wrong: "Code expired. Try again."
-              → 3 failures → [ADMIN ALERT] → WhatsApp: "Verification failed. Admin will contact you."
+              → 3 failures → [ADMIN ALERT]
   → Webhook Response: HTTP 200
 
 intent == "help":
@@ -222,6 +280,8 @@ Google Sheets Append/Update: Add/update Customer
   ↓
 WhatsApp Send Message: Proxy details + PDF receipt
   ↓
+[IMPORTANT] → WhatsApp: "⚠️ No refunds once proxy is delivered. Replacement only within 24hrs if banned. See 'Help' for more."
+  ↓
 Webhook Response: HTTP 200
 ```
 
@@ -270,64 +330,65 @@ Webhook Trigger (WhatsApp POST)
   ↓
 Edit Fields: Extract from, msg_body
   ↓
-[CHECK: Is admin number?] → NO → Route to Workflow 1 (customer flow)
+[CHECK: Is admin number?] → NO → Route to Workflow 1
   ↓
 [ADMIN COMMAND PARSER] — Parse command
   ↓
 "Pending":
   → Google Sheets Read: All rows where Status = "ban_pending_review" OR "admin_action_required"
   → WhatsApp: Send summary list of all pending actions
-  → Webhook Response: HTTP 200
 
 "Approve ORD-XXXXX":
-  → Google Sheets Read: Get order details
+  → Google Sheets Read: Get order details + action type
   → Switch: Route by action type
     "ban_pending_review":
       → HTTP Request → Provider API: Generate replacement proxy
-      → Google Sheets Update: Status = "fulfilled", new proxy details
+      → Google Sheets Update: Status = "fulfilled", new proxy details, Replacement Count +1
       → WhatsApp (customer): "✅ Replacement approved! Your new proxy:"
         + New proxy details + PDF receipt
-      → Google Sheets Update: ban_pending_review → resolved
     "refund_pending":
       → HTTP Request → Flutterwave: Initiate refund
       → Google Sheets Update: Status = "refunded"
       → WhatsApp (customer): "✅ Refund processed. ₦{amount} in 5–7 days."
-      → Google Sheets Update: refund_pending → resolved
   → WhatsApp (admin): "✅ Done — ORD-XXXXX approved"
-  → Webhook Response: HTTP 200
 
 "Reject ORD-XXXXX [reason]":
   → Google Sheets Update: Status = "rejected", Notes = reason
-  → WhatsApp (customer): "❌ We couldn't verify your claim.
-               Contact us if you have questions."
-  → Google Sheets Update: ban_pending_review → rejected
+  → WhatsApp (customer): "❌ We couldn't verify your claim."
   → WhatsApp (admin): "✅ Rejected — ORD-XXXXX. Reason: [reason]"
-  → Webhook Response: HTTP 200
 
 "Block [phone] [reason]":
-  → Google Sheets Update: Customers sheet — Blocked = TRUE, Blocked Reason = reason
+  → Google Sheets Update: Customers — Blocked = TRUE, Blocked Reason = reason
   → WhatsApp (admin): "✅ Blocked [phone]. Reason: [reason]"
-  → Webhook Response: HTTP 200
 
 "Unblock [phone]":
-  → Google Sheets Update: Customers sheet — Blocked = FALSE, Blocked Reason = ""
+  → Google Sheets Update: Customers — Blocked = FALSE, Blocked Reason = ""
   → WhatsApp (admin): "✅ Unblocked [phone]"
-  → Webhook Response: HTTP 200
 
 "Details ORD-XXXXX":
   → Google Sheets Read: Get full order details
   → WhatsApp (admin): Send full order summary
-  → Webhook Response: HTTP 200
 
 "Refund ORD-XXXXX":
-  → Google Sheets Update: Status = "refund_pending", Notes = "Admin requested"
-  → WhatsApp (admin): "Refund queued for ORD-XXXXX.
-               Reply 'Approve ORD-XXXXX' to confirm."
-  → Webhook Response: HTTP 200
+  → Google Sheets Read: Check order status
+    → If Status == "fulfilled":
+      → WhatsApp (admin): "⚠️ Proxy already delivered for ORD-XXXXX.
+                           Refunds are not available unless there's
+                           a verified technical issue.
+                           Reply 'Force-Refund ORD-XXXXX' to override."
+    → If Status == "awaiting_payment" or "paid_pending_fulfillment":
+      → HTTP Request → Flutterwave: Cancel/refund
+      → Google Sheets Update: Status = "refunded"
+      → WhatsApp (admin): "✅ Refunded — ORD-XXXXX"
+
+"Force-Refund ORD-XXXXX":
+  → Only works for admin — override for exceptional cases
+  → HTTP Request → Flutterwave: Initiate refund
+  → Google Sheets Update: Status = "refunded", Notes = "Admin override — exemption"
+  → WhatsApp (admin): "✅ Force-refunded — ORD-XXXXX (exemption)"
 
 Default:
   → WhatsApp (admin): "Unknown command. Type 'Pending' to see actions."
-  → Webhook Response: HTTP 200
 ```
 
 ---
@@ -337,9 +398,18 @@ Default:
 ```
 Customer: "My IP was banned"
         ↓
+Check: Was order within 24hrs?
+  → NO: WhatsApp: "I'm sorry, replacement is only
+               available within 24hrs of purchase.
+               If your proxy has technical issues,
+               please send a screenshot."
+    → If provides screenshot: [ADMIN ALERT] → "Customer claiming technical issue — ORD-XXXXX"
+    → Webhook Response: HTTP 200
+  ↓
+YES: Within 24hrs
+  ↓
 WhatsApp: "I'm sorry. Please send a screenshot
-           of the ban/block message (within 24hrs
-           of purchase)."
+           of the ban/block message."
         ↓
 Customer sends screenshot
         ↓
@@ -352,20 +422,18 @@ Google Sheets Update: Status = "ban_pending_review"
 [ADMIN ALERT] → WhatsApp (admin):
 "📋 New Ban Claim — ORD-XXXXX
  Customer: [name] — [phone]
- Order: [product] — [date]
+ Order: [product] — [date of purchase]
  Screenshot: [view link]
- 
+
  Reply: 'Approve ORD-XXXXX'
         or 'Reject ORD-XXXXX reason'"
-        ↓
-Admin reviews → decides
         ↓
 [Continues via Admin Command Handler above]
 ```
 
 ---
 
-## Workflow 5: Proxy Fulfillment (Provider APIs)
+## Workflow 5: Provider APIs
 
 ### Proxy-Seller API (Primary for ISP + DC)
 
@@ -402,7 +470,7 @@ Body: {"type": "mobile", "country": "us", "traffic": "5GB"}
 
 ```
 Proxy-Seller → Fails → OkeyProxy → Fails → DataImpulse → Fails
-→ [ADMIN ALERT] → Initiate refund → Mark failed
+→ Initiate refund (proxy never delivered) → [ADMIN ALERT] → Mark failed
 ```
 
 ---
@@ -519,6 +587,12 @@ YOUR JOB:
 2. If order is clear → confirm price and prepare payment link request
 3. If order is unclear → ask ONE clarifying question only
 4. If customer asks about providers → deflect politely
+5. If customer asks about refunds → explain the refund policy
+
+REFUND POLICY TO COMMUNICATE:
+- No refunds after a proxy is delivered
+- Replacement only within 24hrs of purchase (with screenshot)
+- If there's a technical issue from the start → admin will review
 
 NEVER DO / NEVER SAY:
 - Never mention Proxy-Seller, OkeyProxy, DataImpulse, IPRoyal, or any provider name
@@ -537,6 +611,7 @@ ORDER VALID COMMANDS:
 - "Renew [ORDER_ID]" → intent=renew
 - "Help" → intent=help
 - "Check price [PRODUCT]" → intent=price_check
+- "Refund" OR "Cancel" → intent=refund_request
 
 IF MESSAGE IS NOT A VALID COMMAND:
 - Extract intent if possible
@@ -545,7 +620,7 @@ IF MESSAGE IS NOT A VALID COMMAND:
 
 RESPONSE FORMAT — Return ONLY valid JSON:
 {
-  "intent": "order|status|renew|help|price_check|ban_reported|unknown",
+  "intent": "order|status|renew|help|price_check|ban_reported|refund_request|unknown",
   "product": "ISP|RESIDENTIAL|MOBILE|DATACENTER|null",
   "country": "country code or null",
   "quantity": number or null,
@@ -575,11 +650,14 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | Screenshot URL | text |
 | Ban Verified | admin_review_pending / verified / rejected |
 | Replacement Count | number |
+| Refund Requested | boolean |
+| Notes | text |
 | Created At | datetime |
 | Fulfilled At | datetime |
 | Cost (USD) | number |
 
-**Status Values:** `awaiting_payment` | `paid_pending_fulfillment` | `fulfilled` | `ban_pending_review` | `replaced` | `failed` | `refunded` | `rejected`
+**Status Values:**
+`awaiting_payment` | `paid_pending_fulfillment` | `fulfilled` | `ban_pending_review` | `replaced` | `failed` | `refund_pending` | `refunded` | `rejected` | `cancelled`
 
 ---
 
@@ -593,6 +671,7 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | PIN Hash | text (bcrypt) |
 | Total Orders | number |
 | Lifetime Value (NGN) | number |
+| Replacement Count | number |
 | Last Order At | datetime |
 | Support Notes | text |
 | Blocked | boolean |
@@ -617,6 +696,7 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 | OTP expires in 5 minutes | Timestamp checked |
 | Max 3 verification attempts | Counted before admin escalation |
 | Admin only on exception | Admin Workflow triggered only on exception |
+| No refund after delivery | Workflow enforces — admin override only |
 
 ---
 
@@ -651,8 +731,13 @@ curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
   -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t3","from":"2347032981049","timestamp":"123","text":{"body":"Pending"}}]}}]}]}'
 
-# Scenario 4: Admin approves replacement
+# Scenario 4: Admin force-refund (exemption)
 curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
   -H "Content-Type: application/json" \
-  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t4","from":"2347032981049","timestamp":"123","text":{"body":"Approve ORD-2026-XXXXX"}}]}}]}]}'
+  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t4","from":"2347032981049","timestamp":"123","text":{"body":"Force-Refund ORD-2026-XXXXX"}}]}}]}]}'
+
+# Scenario 5: Customer requests refund after delivery
+curl -X POST https://n8n.yourdomain.com/webhook/whatsapp-incoming \
+  -H "Content-Type: application/json" \
+  -d '{"entry":[{"changes":[{"value":{"messages":[{"id":"t5","from":"2349000000001","timestamp":"123","text":{"body":"I want a refund"}}]}}]}]}'
 ```
