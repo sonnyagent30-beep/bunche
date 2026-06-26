@@ -39,27 +39,21 @@ Proxy credentials delivered on WhatsApp (< 2 min)
 ## Architecture
 
 ```
-WhatsApp → Cloudflare → Nginx → n8n → PostgreSQL + Redis
+WhatsApp → Cloudflare → Nginx → n8n (Docker on VPS)
+                                      ↓
+                               PostgreSQL + Redis
                                       ↓
                                MiniMax M2 (LLM)
                                       ↓
-                          Proxy-Seller / DataImpulse API
+                          Proxy-Seller / DataImpulse APIs
 ```
 
-- **n8n**: Workflow engine (Docker on VPS)
+- **n8n**: Workflow engine (15 workflows documented)
 - **PostgreSQL**: Customers, orders, audit logs
 - **Redis**: Caching, sessions, rate limiting
 - **MiniMax M2**: LLM for intent parsing and responses
 - **Flutterwave**: Payment processing
 - **Cloudflare R2**: File storage (screenshots, receipts)
-
----
-
-## Quick Start
-
-1. Clone repo
-2. Copy `.env.example` → `.env` and fill in values
-3. Follow `docs/DEPLOYMENT.md` for full setup
 
 ---
 
@@ -71,13 +65,35 @@ WhatsApp → Cloudflare → Nginx → n8n → PostgreSQL + Redis
 | `docs/ARCHITECTURE_PLAN.md` | System architecture |
 | `docs/DATABASE_SCHEMA.md` | PostgreSQL schema |
 | `docs/SECURITY_PLAN.md` | Security implementation |
+| `docs/FLUTTERWAVE_WHATSAPP_SETUP.md` | Payment + messaging setup |
 | `docs/REFERRAL_SYSTEM.md` | Referral system spec |
 | `workflows/WORKFLOW_SPECS.md` | 15 workflows documented |
+| `AGENTS.md` | Agent system documentation |
+| `docs/adr/` | Architecture Decision Records |
+
+---
+
+## Workflow Templates
+
+Actual n8n JSON workflows in `.n8n/workflows/`:
+
+| Workflow | File |
+|----------|------|
+| Order Handler | `order-handler.json` |
+| Payment Confirmation | `payment-confirmation.json` |
+| Data Alert Escalation | `data-alert.json` |
+| Referral Credit Processor | `referral-credit.json` |
+| Daily Summary | `daily-summary.json` |
+| Error Alert | `error-alert.json` |
 
 ---
 
 ## Legal
 
-- `legal/TERMS_OF_SERVICE.md`
-- `legal/PRIVACY_POLICY.md`
-- `legal/ACCEPTABLE_USE_POLICY.md`
+`legal/TERMS_OF_SERVICE.md` · `legal/PRIVACY_POLICY.md` · `legal/ACCEPTABLE_USE_POLICY.md`
+
+---
+
+## Archive
+
+Obsolete docs (Google Sheets era, old providers): `archive/`
