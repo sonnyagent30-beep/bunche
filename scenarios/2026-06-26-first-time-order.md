@@ -2,7 +2,7 @@
 
 **Date captured:** 2026-06-26
 **Status:** Rules extracted + locked into WORKFLOW_SPECS for v3
-**Last update:** Added legal notice requirement to first message
+**Last update:** Removed data collection summary from first message (cleaner UX)
 
 ---
 
@@ -60,9 +60,6 @@ Pay in Naira, get your proxy in under 2 minutes.
 • Privacy Policy: bunche.ng/privacy
 • Acceptable Use Policy: bunche.ng/aup
 
-We collect: phone number, order history, proxy usage data.
-We DON'T collect: name (until you set one), address, ID.
-
 ━━━━━━━━━━━━━━━━━━
 🛒 To order, just type:
 Order ISP UK 1 · Order RES 5GB · Order MOB 10GB
@@ -79,9 +76,8 @@ What do you need? 👇
 - ✅ No `free trial` mention at this stage (added later when customer asks or admin nudges)
 - ✅ Tips are embedded inline with each product line where useful
 - ✅ No name ask here
-- ✅ **Legal notice: Terms + Privacy + AUP with explicit "BY REPLYING YOU AGREE TO"** ← ADDED THIS SESSION
-- ✅ What we collect / don't collect summary (NDPR transparency)
-- ✅ Links use bunche.ng (or actual deployed domain) — not raw GitHub paths
+- ✅ **Legal notice: Terms + Privacy + AUP with explicit "BY REPLYING YOU AGREE TO"** (NDPR compliance)
+- ❌ ~~Data collection summary~~ — REMOVED this session (cleaner UX, legal docs are enough)
 
 ---
 
@@ -156,20 +152,20 @@ you prove it's you and recover your proxies from any number.
 
 ---
 
-## New Rule Locked This Session (Update #2)
+## New Rule Locked This Session (Update #3)
 
-### Legal Notice on First Message
+### Legal Notice on First Message (Final Form)
 
 | Item | Rule |
 |------|------|
-| **What** | Terms of Service, Privacy Policy, Acceptable Use Policy must appear in first message |
+| **What** | Terms of Service, Privacy Policy, Acceptable Use Policy appear in first message |
 | **Format** | Section labeled "⚖️ BY REPLYING YOU AGREE TO:" with bullet list + URLs |
 | **Consent mechanism** | Implicit — customer replies = agrees (NDPR-compliant for WhatsApp context) |
-| **Data collection summary** | Required — state what we collect AND what we don't (NDPR Article 5: transparency) |
+| **Data collection summary** | ❌ NOT included (removed — cleaner UX, legal docs cover it) |
 | **URLs** | Use deployed domain (bunche.ng) — short, clean, mobile-friendly |
 | **Where stored** | `legal/` directory in repo, deployed to domain |
 
-**Why critical:** NDPR requires explicit notice at point of data collection. WhatsApp message = our point of data collection. Without this notice, Bunche can't legally process the customer's phone number.
+**Why this final form:** The legal notice is sufficient for consent. Adding a "we collect / don't collect" summary in every first message is clutter — customers don't read it, and the Privacy Policy already covers it in detail. Cleaner UX = better customer experience.
 
 ---
 
@@ -179,7 +175,7 @@ you prove it's you and recover your proxies from any number.
 |---|------|---------------|
 | 1 | First message = greeting + services + prices + tip (no free trial) | WORKFLOW_SPECS §1 |
 | 1a | **First message MUST include legal notice (Terms, Privacy, AUP) with implicit consent** | WORKFLOW_SPECS §1, `legal/` |
-| 1b | **First message MUST include data collection summary (NDPR transparency)** | WORKFLOW_SPECS §1 |
+| ~~1b~~ | ~~First message MUST include data collection summary~~ | ❌ REMOVED (cleaner UX) |
 | 2 | No name ask at greeting — only after payment, before IP | WORKFLOW_SPECS §2 |
 | 3 | Name = referral code (per ADR-003) | ADR-003 |
 | 4 | Pre-payment provider check is MANDATORY | WORKFLOW_SPECS §2 |
