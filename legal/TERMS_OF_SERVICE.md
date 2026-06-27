@@ -42,263 +42,209 @@ You must:
 
 All prices are in Nigerian Naira (NGN). Prices are subject to change with 7 days' notice.
 
-### ISP Proxies (Monthly, Static IP)
+### 🌐 ISP Proxies — Default (IPv4)
 
 | Product | Price | Countries |
 |---------|-------|-----------|
 | ISP Standard | ₦5,000/mo | UK, US, Germany, France, Canada |
 | ISP Premium | ₦6,500/mo | Japan, Australia, Brazil, Singapore, South Korea |
-| ISP IPv6 | ₦3,500/mo | UK, US |
 
-### Datacenter Proxies (Monthly)
+### 🖥️ Datacenter Proxies
 
 | Product | Price | Type |
 |---------|-------|-------|
-| DC Static IPv4 | ₦3,000/mo | Static |
-| DC Static IPv6 | ₦2,500/mo | Static |
-| DC Rotating | ₦4,500/GB | Per GB |
+| DC Static | ₦3,000/mo | IPv4 |
+| DC Static IPv6 | ₦2,500/mo | IPv6 (available on request) |
+| DC Rotating | ₦4,500/GB | IPv4 |
 
-### Residential Proxies (GB-Based)
+### 🏠 Residential Proxies
 
 | Product | Price | Notes |
 |---------|-------|-------|
-| Residential IPv4 | ₦1,950/GB | No time expiry |
-| Residential IPv6 | ₦1,500/GB | No time expiry |
+| Residential | ₦1,950/GB | IPv4, no expiry |
+| Residential IPv6 | ₦1,500/GB | IPv6 on request |
 
-### Mobile Proxies (4G/LTE)
+### 📱 Mobile Proxies
 
 | Product | Price | Notes |
 |---------|-------|-------|
 | Mobile 4G | ₦4,000/GB | 30-day window |
 
-### Product-Specific Terms
+### IPv6 — Available on Request
+
+IPv6 is available for customers who specifically request it. Not all platforms support IPv6. To order IPv6, tell us "I need IPv6" when ordering.
+
+---
+
+## 5. Protocols
+
+Both protocols are supported on all products:
+
+| Protocol | Port | Best For |
+|----------|------|---------|
+| **HTTP/HTTPS** | 3128 | Web browsing, browser automation |
+| **SOCKS5** | 1080 | All traffic types |
+
+---
+
+## 6. Product-Specific Terms
 
 **ISP / Datacenter:**
 - Unlimited data within 30-day period
 - Same IP kept on renewal if renewed before expiry
-- New IP generated and new credentials issued if renewed after expiry
+- New IP generated if renewed after expiry
 
 **Residential:**
-- Data **never expires** — buy 5GB, use 2GB, you still have 3GB until used
+- Data **never expires** — buy 5GB, use 2GB, still have 3GB
 - Top-ups add GB to existing pool
-- IPv6 available at lower price
 
 **Mobile:**
 - 30-day window to use allocated data
 - Unused GB is **LOST** on renewal or top-up
-- Proxy stops working immediately when data reaches 0GB (regardless of time remaining)
-- Top-ups replace existing data pool (old unused GB is lost)
+- Proxy stops working at 0GB
 
 ---
 
-## 5. Payment Terms
+## 7. Payment Terms
 
 - Payment must be received before proxy is generated
-- If payment is not received within 1 hour of order, the order is automatically cancelled
-- If payment fails or is reversed after delivery, we reserve the right to revoke proxy access immediately
+- If payment is not received within 1 hour, order is cancelled
+- If payment fails after delivery, we revoke proxy access
 
 ---
 
-## 6. Refund Policy
+## 8. Refund Policy
 
 ### Time-Based Products (ISP & DC)
-
 **24-Hour Window Only.**
 
-Once a proxy credential is generated and delivered:
-- **24 hours from delivery:** Refund or replacement if proxy is dead on arrival
-- **After 24 hours:** No refund — only IP replacement if the IP dies within the active period
+- **24 hours from delivery:** Refund or replacement if dead on arrival
+- **After 24 hours:** No refund — only IP replacement
 
 ### GB-Based Products (Residential & Mobile)
-
 **7-Day Window.**
 
 - **7 days from delivery:** Refund for unused GB
 - **After 7 days:** No refund
 
 ### Refunds ARE Allowed In:
-- Proxy never worked from the start (verified by health check)
-- Wrong IP delivered (wrong country/spec)
-- Fraudulent order (stolen payment)
-- Duplicate charge (same order charged twice)
+- Proxy never worked (verified)
+- Wrong IP delivered
+- Fraudulent order
+- Duplicate charge
 - Admin-approved exemption
 
 ### Refunds are NOT Allowed For:
-- Customer changed mind
-- Platform banned the proxy IP (after 24 hours for ISP/DC)
-- Customer doesn't need it anymore
-- Customer found cheaper elsewhere
-- Account banned by target platform
-
-### Post-Refund IP Handling
-
-Refunded proxies are returned to Bunche's internal pool and reassigned with new credentials. Previously issued credentials are revoked and cannot be used to access any proxy.
+- Changed mind
+- Platform banned the IP (after 24 hours)
+- Don't need it anymore
+- Found cheaper elsewhere
 
 ---
 
-## 7. Free Trial Service
+## 9. Free Trial Service
 
-Bunche offers a free trial service to allow prospective customers to test our service quality before purchasing.
-
-### Free Trial Nature
-
-Free trial proxies use Bunche's self-hosted proxy infrastructure. Free trial credentials are issued under Bunche's branding and are shared among trial users.
-
-### Free Trial Limitations
-
-- **Daily Limit:** Maximum 3 free trial IPs per phone number per day
-- **Duration:** 2 hours — credentials auto-expire after 2 hours
-- **Reliability:** Not guaranteed to work, NOT guaranteed stable
-- **Replacement:** NO replacement if proxy dies or expires
-- **Use Case:** Testing our service only, not for production or critical tasks
-
-### Free Trial Disclaimer
-
-By accepting a free trial, you acknowledge and agree that:
-- Free trial proxies are shared among trial users
-- Free trial proxies may stop working at any moment without notice
-- Free trial proxies may be banned on some platforms
-- Bunche is NOT responsible for free trial proxy performance
-- You use free trial proxies ENTIRELY AT YOUR OWN RISK
-
-### Free Trial Verification
-
-To unlock a free trial IP, you must complete one survey via our partner. Survey completion is verified via secure postback webhook. No payment is required for the free trial.
-
-### Free Trial Abuse
-
-We reserve the right to:
-- Block phone numbers that abuse the free trial system
-- Limit free trials based on usage patterns
-- Revoke free trial access at our discretion
+- **Daily Limit:** 3 free trials per phone number per day
+- **Duration:** 2 hours
+- **Reliability:** NOT guaranteed
+- **For testing only** — not production
 
 ---
 
-## 8. Delivery
+## 10. Delivery
 
-Proxy credentials are delivered automatically via WhatsApp within 2 minutes of confirmed payment.
+Proxy credentials delivered via WhatsApp within 2 minutes of payment.
 
-Free trial credentials are delivered automatically after survey completion verification.
-
-All credentials are issued under Bunche's branding (e.g., proxy1.bunche.ng:1080).
+All credentials issued under Bunche's branding.
 
 ---
 
-## 9. Service Availability
+## 11. Service Availability
 
-We perform pre-payment health checks on all proxy IPs. If a generated IP fails our tests, we attempt replacement. If replacement also fails, you receive an automatic refund.
-
-We test every proxy IP before delivery.
+We perform pre-payment health checks. If IP fails, we replace. If replacement fails, automatic refund.
 
 ---
 
-## 10. Customer Support
+## 12. Customer Support
 
-Customer support is provided through automated workflows. Human admin intervention is reserved for exceptional cases only.
-
-### Admin Intervention Triggers
-
-Admin review is required for:
-- Ban claims with screenshot (within 24 hours of order)
-- Lost account recovery (PIN/OTP failure 3 times)
-- Refund approval for exceptional circumstances
-- Suspected fraudulent activity
-- Customer blocked from using service
-
-### Admin Commands
-
-The Bunche admin can issue commands via WhatsApp to:
-- Approve or reject replacement/refund requests
-- Block or unblock customers
-- Check order details
-- Force-refund in exceptional cases
-- Revoke credentials and reassign IPs to free trial pool
+Automated via WhatsApp. Human admin intervention for:
+- Ban claims with screenshot (within 24 hours)
+- Lost account recovery
+- Refund approval
+- Fraudulent activity
 
 ---
 
-## 11. Security & Recovery
+## 13. Security & Recovery
 
-### Phone-Based Identity
+**Phone-Based Identity:** Your WhatsApp number is your identifier.
 
-Your WhatsApp phone number serves as your primary identifier. Returning customers (number in system) are trusted and do not need additional verification for ordering or proxy retrieval.
+**Recovery Options:**
+- **PIN:** 4-digit PIN for verification
+- **OTP:** Codes via WhatsApp
 
-### Recovery Method
-
-For new phone numbers claiming to be returning customers, we offer optional security:
-- **PIN:** Set a 4-digit PIN for verification
-- **OTP:** Receive codes via WhatsApp when verification is needed
-
-Recovery method is established after first purchase. Lost WhatsApp access requires manual admin verification.
-
-### Data Security
-
-- All data in transit uses TLS 1.2+
-- PINs are stored hashed (bcrypt)
-- API keys stored securely in n8n credentials
-- Proxy credentials are rotated regularly and on-demand
+**Data Security:**
+- TLS 1.2+ for all data in transit
+- PINs stored hashed (bcrypt)
+- API keys stored securely in n8n
 
 ---
 
-## 12. Acceptable Use
+## 14. Acceptable Use
 
-Prohibited uses include:
-- Fraud, scams, or financial crimes
-- Hacking or unauthorized access
-- Phishing or social engineering
-- Spam or mass unsolicited communications
+Prohibited:
+- Fraud, scams, financial crimes
+- Hacking, unauthorized access
+- Phishing, social engineering
+- Spam, unsolicited communications
 - Copyright infringement
-- Distribution of malware or viruses
+- Malware, viruses
 - Any illegal activity under Nigerian law
 
-See our full Acceptable Use Policy for details.
+---
+
+## 15. Limitation of Liability
+
+Bunche is not liable for indirect, incidental, or consequential damages. Our total liability shall not exceed the amount you paid in the 30 days preceding the claim.
+
+**Free Trial:** Liability LIMITED TO ZERO — provided AS-IS.
 
 ---
 
-## 13. Limitation of Liability
+## 16. Indemnification
 
-To the maximum extent permitted by Nigerian law, Bunche is not liable for indirect, incidental, or consequential damages. Our total liability shall not exceed the total amount you paid us in the 30 days preceding the claim.
-
-### Free Trial Specific Limitation
-
-For free trial proxies, Bunche's liability is LIMITED TO ZERO. Free trial proxies are provided AS-IS, with no warranty of any kind. You assume all risk for free trial proxy use.
+You agree to indemnify Bunche from any claims arising from your use of our services.
 
 ---
 
-## 14. Indemnification
+## 17. Account Termination
 
-You agree to indemnify Bunche from any claims arising from your use of our services or your violation of these terms.
-
----
-
-## 15. Account Termination
-
-We may suspend or terminate your access if you:
+We may suspend or terminate access if you:
 - Violate these terms
-- Violate the Acceptable Use Policy
+- Violate Acceptable Use Policy
 - Fail to pay
 - Engage in fraudulent activity
 - Abuse the free trial system
 
 ---
 
-## 16. Changes to Terms
+## 18. Changes to Terms
 
-We may update these Terms of Service. Changes will be communicated via:
-- Updated "Effective Date" at the top of this document
-- Re-display of legal notice on next WhatsApp interaction (for new customers)
-- WhatsApp notification for material changes (for returning customers)
+Changes communicated via:
+- Updated "Effective Date" at top
+- WhatsApp notification for material changes
 
-Continued use of Bunche after changes constitutes acceptance.
-
----
-
-## 17. Governing Law
-
-These terms are governed by the laws of the Federal Republic of Nigeria.
+Continued use after changes = acceptance.
 
 ---
 
-## 18. Contact
+## 19. Governing Law
+
+Governed by laws of the Federal Republic of Nigeria.
+
+---
+
+## 20. Contact
 
 **WhatsApp:** +234 XXX XXX XXXX
 **Email:** support@bunche.ng
