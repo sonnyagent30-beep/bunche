@@ -32,6 +32,7 @@
 | 8 | Data alerts (80% / 100%) | ✅ DONE | Customer-side only, no admin alert |
 | 9 | Daily summary (23:55 cron) | ✅ DONE | Admin gets report, customer sees nothing |
 | 43 | Double payment (accidental) | ✅ DONE | Auto-refund second payment immediately |
+| 45 | Chargeback / dispute | ✅ DONE | Investigate first → partial if live, full if dead, deny if repeat |
 
 ---
 
@@ -41,7 +42,6 @@
 
 | # | Scenario | Status | Notes |
 |---|---------|--------|-------|
-| 45 | Chargeback / dispute — Bank reverses days later, IP already delivered | 🔄 PENDING | — |
 | 46 | Amount tampering — Customer modifies link URL amount → pays less | 🔄 PENDING | — |
 | 58 | PIN brute-force attack — Attacker guesses PIN systematically for known name | 🔄 PENDING | — |
 | 60 | Phone_hash bypass — Multiple numbers to bypass 3-trial/day limit | 🔄 PENDING | — |
@@ -168,9 +168,10 @@
 | Data alerts | Customer-side only — no admin alert |
 | Daily summary | Admin gets report — customer sees nothing |
 | Double payment | Auto-refund second payment immediately |
+| Chargeback | Investigate first — partial if IP live, full if dead, deny if repeat abuse |
 
 ---
 
 ## NEXT SESSION — PICK UP FROM
 
-**Scenario 45** (🔴 Tier 1 Critical — next in queue)
+**Scenario 46** (🔴 Tier 1 Critical — next in queue)
