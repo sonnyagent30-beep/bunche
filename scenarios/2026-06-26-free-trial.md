@@ -1,14 +1,28 @@
-# Bunche — Scenario Replay: Free Trial (Public Proxy)
+# Bunche — Scenario Replay: Free Trial (3proxy + Theorem Reach)
 
 **Date captured:** 2026-06-26
 **Source:** Live roleplay session between Dannion (customer) and Sonny (as Bunche)
 **Status:** Rules extracted + locked for v3
+**Last update:** Decisions 1-4 finalized — 3proxy self-hosted + Theorem Reach survey
 
 ---
 
 ## Purpose
 
 Free trial is Bunche's customer acquisition tool. Goal: let new customers test Bunche UX with zero risk. Constraint: prevent abuse + don't promise reliability we can't deliver.
+
+---
+
+## Locked Decisions (This Session)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **1. Public proxy source** | Self-hosted **3proxy** on Bunche VPS | Full control, reliable, cheap |
+| **1a. Trial time limit** | **2 hours** (auto-expire via cron) | Long enough to test, short enough to limit abuse |
+| **2. Survey provider** | **Theorem Reach** | Highest anti-bot (behavioral), highest payout ($1-4/survey), API-first |
+| **2a. Validation** | HMAC-signed postback + status=completed only | Prevents fake completions |
+| **3. NDPR/multi-number abuse** | **F: Accept the cost** | ~$0.10-$0.60/day worst case vs engineering cost |
+| **4. Extra bot protection** | **None** — Theorem Reach built-in is enough (~95% block rate) | Cost-benefit doesn't justify |
 
 ---
 
@@ -37,20 +51,19 @@ Before we send your free IP, please read:
 ⚠️ FREE TRIAL TERMS ⚠️
 ━━━━━━━━━━━━━━━━━━
 
-This free trial uses PUBLIC PROXIES from
-external sources. By accepting, you agree:
+This free trial uses a Bunche-hosted proxy
+shared with other trial users. By accepting, you agree:
 
-❌ NOT guaranteed to work
-❌ NOT guaranteed stable
-❌ May stop working at any moment
-❌ Not for production/critical use
-❌ No replacement if proxy dies
+❌ NOT for production/critical use
+❌ Not guaranteed private (shared with other trials)
+❌ IP shared = if one user misbehaves, IP could get flagged
+❌ No replacement if proxy dies or expires
 ❌ Used entirely at YOUR OWN RISK
 
-✅ Bunche is NOT responsible for proxy
-   performance during free trial
+✅ Bunche-hosted proxy — generally reliable
+✅ Auto-expires after 2 hours
 ✅ For testing our service only
-✅ Upgrade to paid plan for reliability
+✅ Upgrade to paid plan for reliability + privacy
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -62,63 +75,84 @@ After completing, reply DONE
 ```
 
 **Rules extracted:**
-- ✅ Free trial uses PUBLIC PROXIES (not Bunche's paid IP pool)
-- ✅ Full disclaimer shown BEFORE customer accepts
-- ✅ Disclaimer is explicit: 6 things it CAN'T do, 3 things it CAN
-- ✅ Customer must complete survey (anti-abuse)
+- ✅ Free trial uses Bunche VPS 3proxy (NOT public proxies, NOT paid Bunche pool)
+- ✅ Updated disclaimer reflects self-hosted (no longer "may stop anytime")
+- ✅ Customer must complete Theorem Reach survey (anti-abuse)
 - ✅ Survey link + DONE reply mechanism
-- ❌ No mention of "Bitlock.ai" (we're using generic survey for now)
+- ✅ 2-hour TTL (not 30 min, not no-time-limit)
 
 ---
 
 ### Turn 3 — Customer: `Done`
 
-**System:**
-- Verify survey completion (placeholder — real impl hits survey API)
-- Check daily counter: `SELECT COUNT(*) FROM free_trials WHERE phone_hash = ? AND DATE(created_at) = CURRENT_DATE`
-- If >= 3 → reject (see Turn 3a)
-- Internal: pull public proxy from external source
-- Test up to 10 retries (invisible to customer)
-- One of two outcomes:
-
-**Customer-facing (PROXY AVAILABLE — success path):**
+**System (backend, invisible to customer):**
 
 ```
-✅ Survey verified!
+1. Verify survey completion via Theorem Reach postback OR DONE reply
+   ↓
+2. Check daily counter:
+   SELECT COUNT(*) FROM free_trials
+   WHERE phone_hash = ? AND DATE(created_at) = CURRENT_DATE;
+   ↓
+3. If >= 3 → reject (daily limit)
+   ↓
+4. Generate unique trial user_id: trial_a7b9c2 (16 chars alphanumeric)
+   ↓
+5. Generate random password: 16 chars
+   ↓
+6. Add to 3proxy config with TTL 2hr
+   ↓
+7. Save to free_trials table:
+   - order_id = TRIAL-20260627-1042
+   - phone_hash, user_id, password_hash
+   - proxy_ip = VPS_PUBLIC_IP
+   - proxy_port = next available (8001-8100)
+   - expires_at = NOW() + 2 hours
+   - survey_transaction_id = from Theorem Reach
+   - survey_payout_usd = 1.50 (recorded)
+   ↓
+8. Cron schedules credential cleanup at expires_at
+   ↓
+9. Audit log: free_trial_delivered
+```
+
+**Customer-facing (PROXY READY — success path):**
+
+```
+✅ Survey verified! Trial ready.
 
 ━━━━━━━━━━━━━━━━━━
-🌐 PUBLIC PROXY TRIAL
+🌐 BUNCHE TRIAL PROXY — 2 HOURS
 ━━━━━━━━━━━━━━━━━━
 
-🔗 IP: [PUBLIC_IP]
-🔌 Port: [PUBLIC_PORT]
-👤 User: [if required]
-🔑 Pass: [if required]
+🔗 IP: bunche.ng
+🔌 Port: 8001
+👤 User: trial_a7b9c2
+🔑 Pass: Kx9mNp2qR8sT4wY7
 
-⚠️ REMINDER: This is a PUBLIC proxy.
-• May stop working anytime — that's normal
-• Not for production use
-• No replacement if it dies
+⏰ Expires: [current time + 2hrs]
+
+⚠️ Shared proxy — other trial users share this IP.
+For private/production use, upgrade to a paid plan.
 
 🛡️ You've used [X/3] free trials today.
 
-💡 Want reliable proxies? Reply menu to see paid plans.
+💡 Want reliable private proxies? Reply menu to see paid plans.
 ```
 
-**Customer-facing (NO PROXY AVAILABLE — failure path):**
+**Customer-facing (NO PROXY AVAILABLE — port exhaustion, all 100 in use):**
 
 ```
-⚠️ No public proxy available right now.
+⚠️ All trial slots busy right now.
 
-We'll keep trying — you'll get a WhatsApp ping the moment one works
-(typically within 30 minutes).
+We'll ping you the moment one opens up (usually within 30 minutes).
 
 🛡️ You've used [X/3] free trials today.
 
 💡 Want reliable proxies now? Reply menu.
 ```
 
-**Customer-facing (DAILY LIMIT HIT — turn 3a):**
+**Customer-facing (DAILY LIMIT HIT):**
 
 ```
 🛡️ Daily limit reached — you've used 3/3 free trials today.
@@ -132,98 +166,177 @@ Reply menu to order, or wait until tomorrow for another free trial.
 ```
 
 **Rules extracted (CRITICAL):**
-- ❌ **NEVER show retry attempts to customer** — internal mechanics are invisible
-- ✅ Max 10 retries on dead public proxy (all hidden)
-- ✅ All 10 fail → "No public proxy available" + scheduled retry cron
-- ✅ Customer-facing message is ONE of three clean outcomes (success / no-stock / daily-limit)
-- ✅ Daily counter visible: "You've used X/3 free trials today"
-- ✅ No expiration time (public proxies stop on their own)
-- ✅ 3 free trials per phone number per day
+- ❌ **NEVER show internal mechanics to customer** (retry attempts, port allocation, etc.)
+- ✅ Max 1 trial granted per survey completion (no "retry 10 times" — survey is the gate)
+- ✅ Daily limit visible: "You've used X/3 free trials today"
+- ✅ 2-hour TTL displayed explicitly to customer
+- ✅ Remind customer proxy is shared (so they don't think it's private)
 
 ---
 
-### Turn 4 — (Optional) Customer: Proxy died / doesn't work
+### Turn 4 — (Optional, hours later) Customer: `Trial died`
 
 **Customer-facing:**
 
 ```
-Yeah, that's the trade-off with public proxies — they stop working without warning.
+⏰ Your trial expired after 2 hours (or stopped working).
 
-Options:
-• Wait a bit and reply retry — I'll try to grab you another
-• Reply menu to see paid plans (private, reliable, guaranteed up)
+That's expected for free trials. Want to:
 
-🛡️ You've used [X/3] free trials today.
+• Try another free trial (you've used [X/3] today)
+• Upgrade to a paid plan (private proxies, longer-lasting)
+
+Reply menu or trial.
 ```
-
-**Rules extracted:**
-- Public proxies dying = expected, not a bug
-- Always offer retry (counts against daily limit)
-- Always upsell paid plans
 
 ---
 
-### Turn 5 — (Optional, hours later) Customer: `retry`
+### Turn 5 — (Background) Cron: 2-hour credential cleanup
 
 **System:**
-- Check daily counter — if >= 3 → reject (same Turn 3a message)
-- Pull public proxy + test (up to 10 retries, invisible)
-- Same outcomes as Turn 3
-
----
-
-### Turn 6 — (Optional, scheduled) Background: Retry cron finds a proxy
-
-**System (when customer phone_hash has open trial request + cron finds working proxy):**
 
 ```
-✅ Got one for you!
+[Cron: every 5 minutes]
+SELECT user_id, expires_at FROM free_trials
+WHERE status = 'active' AND expires_at < NOW();
 
-━━━━━━━━━━━━━━━━━━
-🌐 PUBLIC PROXY TRIAL
-━━━━━━━━━━━━━━━━━━
-
-🔗 IP: [PUBLIC_IP]
-🔌 Port: [PUBLIC_PORT]
-👤 User: [if required]
-🔑 Pass: [if required]
-
-⚠️ Public proxy — may stop anytime.
-
-🛡️ You've used [X/3] free trials today.
+-- For each expired:
+1. Remove from 3proxy config (user can't authenticate anymore)
+2. UPDATE free_trials SET status = 'expired'
+3. Audit log: free_trial_expired
 ```
 
 ---
 
-## Free Trial Flow (Locked)
+## 3proxy Setup
 
+### Install on Bunche VPS
+
+```bash
+# Install 3proxy
+apt install 3proxy -y
+
+# Or build from source (more control):
+# https://github.com/3proxy/3proxy
+
+# Generate Bunche trial config
+cat > /etc/3proxy/bunche-trial.cfg << 'EOF'
+#!/usr/local/3proxy/bin/3proxy
+
+# Trial proxy configuration
+daemon
+pidfile /var/run/3proxy-bunche.pid
+nscache 65536
+nserver 8.8.8.8
+
+# Authentication: username/password
+auth strong
+users trial_a7b9c2:CL:bcrypt_hash_here
+users trial_x9k2m4p:CL:bcrypt_hash_here
+# ... up to 100 users
+
+# Allow only authenticated users
+allow trial_*
+
+# HTTP/HTTPS proxy on ports 8001-8100
+external YOUR_VPS_IP
+internal 0.0.0.0
+flip $0
+no log
+
+# Trial sessions expire after 2hr (handled by cron removing users)
+proxy -p8001-8100
+EOF
+
+# Run
+3proxy /etc/3proxy/bunche-trial.cfg
 ```
-[Customer says "free trial" / "free plan"]
-   ↓
-[Show disclaimer — customer reads]
-   ↓
-[Customer agrees (implied by continuing) + survey link]
-   ↓
-[Customer replies DONE]
-   ↓
-[Verify survey completion]
-   ↓
-[Check daily counter — 3/3 hit? → reject]
-   ↓
-[Pull public proxy from external source]
-   ↓
-[Test #1]
-   ❌ → pull another → Test #2
-   ❌ → pull another → Test #3
-   ... (up to 10 attempts, ALL invisible to customer)
-   ↓
-   ┌─────────────────────────────────────────┐
-   │ Final outcome                           │
-   ├─────────────────────────────────────────┤
-   │ ✅ Got working proxy → Deliver           │
-   │ ❌ All 10 failed → Tell customer         │
-   │    + Schedule retry cron (every 30 min)  │
-   └─────────────────────────────────────────┘
+
+### Dynamic user management
+
+n8n workflow (or cron + script) adds/removes users from `users trial_XXX:CL:hash` line based on `free_trials` table state.
+
+**Add user (on trial delivery):**
+```bash
+# Generate: openssl rand -hex 8
+USERNAME="trial_$(openssl rand -hex 4)"
+PASSWORD="$(openssl rand -hex 8)"
+HASH=$(3proxy --help 2>&1 | grep -i crypt | head -1 || echo "plaintext")
+
+# Append to config
+echo "users ${USERNAME}:CL:${PASSWORD}" >> /etc/3proxy/bunche-trial.cfg
+```
+
+**Remove user (on trial expiry):**
+```bash
+# Find and remove the line
+sed -i "/^users ${USERNAME}:/d" /etc/3proxy/bunche-trial.cfg
+
+# Reload 3proxy
+kill -HUP $(cat /var/run/3proxy-bunche.pid)
+```
+
+---
+
+## Theorem Reach Setup
+
+### Account setup
+
+1. Sign up at theoremreach.com
+2. Get API key + survey wall URL
+3. Configure postback URL: `https://n8n.yourdomain.com/webhook/theorem-reach`
+4. Get HMAC secret for postback signature verification
+
+### Webhook handler (n8n workflow)
+
+```javascript
+// POST /webhook/theorem-reach
+// Body:
+// {
+//   "user_id": "trial_a7b9c2",
+//   "survey_id": "SRV-12345",
+//   "status": "completed",
+//   "payout_usd": 1.50,
+//   "transaction_id": "TR-987654",
+//   "signature": "abc123..."
+// }
+
+const crypto = require('crypto');
+
+// 1. Verify HMAC signature
+const expectedSig = crypto
+  .createHmac('sha256', process.env.THEOREM_REACH_SECRET)
+  .update(JSON.stringify({
+    user_id: req.body.user_id,
+    transaction_id: req.body.transaction_id,
+    payout_usd: req.body.payout_usd
+  }))
+  .digest('hex');
+
+if (req.body.signature !== expectedSig) {
+  return { statusCode: 401, body: 'Invalid signature' };
+}
+
+// 2. Check status
+if (req.body.status !== 'completed') {
+  return { statusCode: 200, body: 'Survey not completed' };
+}
+
+// 3. Check idempotency
+const existing = await db.query(
+  'SELECT id FROM free_trials WHERE survey_transaction_id = $1',
+  [req.body.transaction_id]
+);
+if (existing.length > 0) {
+  return { statusCode: 200, body: 'Already processed' };
+}
+
+// 4. Generate trial credentials
+// ... (call 3proxy add-user logic)
+// ... (save to free_trials table)
+// ... (send WhatsApp to customer with credentials)
+
+return { statusCode: 200, body: 'Trial granted' };
 ```
 
 ---
@@ -231,93 +344,61 @@ Options:
 ## Daily Limit Logic
 
 ```sql
--- Before any free trial attempt:
+-- Before granting trial:
 SELECT COUNT(*) AS trials_today
 FROM free_trials
 WHERE phone_hash = ?
-  AND created_at >= CURRENT_DATE;
+  AND created_at >= CURRENT_DATE
+  AND status IN ('active', 'expired');
 
 -- If trials_today >= 3 → reject with daily limit message
--- Else → proceed with proxy fetch
+-- Else → proceed with 3proxy credential generation
 ```
 
-**What counts as a "trial":**
-- A trial where a proxy was successfully delivered to the customer
-- Failed attempts (no proxy available) DO count (prevents "let me spam retry until something works" abuse)
+**What counts:**
+- Granted trials (status = 'active' or 'expired')
+- **Does NOT count:** Failed attempts (survey not completed, port exhaustion)
 
 ---
 
-## Retry Cron (When All 10 Fail)
-
-```sql
--- Insert into retry_queue when all 10 fail:
-INSERT INTO free_trial_retry_queue
-  (phone_hash, requested_at, status, retry_count)
-VALUES
-  (?, NOW(), 'pending', 0);
-
--- Cron: every 30 minutes
-SELECT phone_hash
-FROM free_trial_retry_queue
-WHERE status = 'pending'
-  AND requested_at > NOW() - INTERVAL '24 hours';
-
--- For each:
---   1. Check daily counter — if >= 3 → mark as 'expired'
---   2. Try to fetch + test public proxy
---   3. If success → send WhatsApp notification to customer + mark as 'delivered'
---   4. If fail → increment retry_count, leave as 'pending'
-```
-
-**Cleanup:** Remove queue entries older than 24 hours (customer can re-request by messaging again).
-
----
-
-## Public Proxy Source
-
-**Where do public proxies come from?**
-
-Options:
-- Public proxy lists (free-proxy-list.net, hide-my-ip free lists)
-- Free-tier API from a paid provider (e.g., Proxy-Seller's 500MB/3-day trial)
-- Bunche's own pool of "demo" IPs
-
-**Decision: TBD.** Free tier API is most reliable. Free lists are flaky.
-
-**For now:** Placeholder — Bunche uses whatever proxy source is configured in `.env` as `FREE_PROXY_API_URL`.
-
----
-
-## Database Schema (New)
+## Database Schema
 
 ```sql
 CREATE TABLE free_trials (
     id SERIAL PRIMARY KEY,
     phone_hash VARCHAR(20) NOT NULL,
     order_id VARCHAR(30) UNIQUE,                  -- TRIAL-20260627-1042
-    survey_provider VARCHAR(50),                  -- 'bitlock', 'cpa', 'manual', etc.
-    survey_completion_id VARCHAR(100),            -- provider's verification ID
+    user_id VARCHAR(20) UNIQUE,                   -- trial_a7b9c2 (for 3proxy auth)
+    password_hash VARCHAR(255),                   -- bcrypt
     proxy_ip VARCHAR(45),
     proxy_port INT,
-    proxy_user VARCHAR(50),
-    proxy_pass_encrypted TEXT,                    -- AES-256-GCM if applicable
-    proxy_source VARCHAR(100),                    -- which provider API
-    delivered_at TIMESTAMPTZ,
-    customer_reported_dead BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    expires_at TIMESTAMPTZ,
+    status VARCHAR(20) DEFAULT 'active',          -- 'active', 'expired', 'revoked'
+    survey_provider VARCHAR(50) DEFAULT 'theorem_reach',
+    survey_transaction_id VARCHAR(100),           -- idempotency key
+    survey_payout_usd DECIMAL(8,2),
+    survey_completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    revoked_reason VARCHAR(100)
 );
 
 CREATE INDEX idx_free_trials_phone_date
   ON free_trials(phone_hash, created_at);
 
-CREATE TABLE free_trial_retry_queue (
+CREATE INDEX idx_free_trials_status_expires
+  ON free_trials(status, expires_at);
+
+CREATE TABLE theorem_reach_postbacks (
     id SERIAL PRIMARY KEY,
-    phone_hash VARCHAR(20) NOT NULL,
-    requested_at TIMESTAMPTZ DEFAULT NOW(),
-    status VARCHAR(20) DEFAULT 'pending',          -- 'pending', 'delivered', 'expired'
-    retry_count INT DEFAULT 0,
-    delivered_at TIMESTAMPTZ,
-    INDEX idx_retry_status (status, requested_at)
+    transaction_id VARCHAR(100) UNIQUE,           -- idempotency
+    user_id VARCHAR(20),
+    survey_id VARCHAR(50),
+    status VARCHAR(20),
+    payout_usd DECIMAL(8,2),
+    signature VARCHAR(255),
+    signature_valid BOOLEAN,
+    processed_at TIMESTAMPTZ DEFAULT NOW(),
+    raw_payload JSONB
 );
 ```
 
@@ -327,34 +408,33 @@ CREATE TABLE free_trial_retry_queue (
 
 | # | Rule | Where it lives |
 |---|------|---------------|
-| 1 | Free trial uses PUBLIC PROXIES, not paid Bunche IP pool | WORKFLOW_SPECS §8 |
-| 2 | Full disclaimer shown BEFORE customer accepts trial | WORKFLOW_SPECS §8 |
-| 3 | Disclaimer includes 6 "can't" + 3 "can" | WORKFLOW_SPECS §8 |
-| 4 | Customer must complete survey + reply DONE | WORKFLOW_SPECS §8 |
-| 5 | Max 10 retries on dead proxy (ALL invisible to customer) | WORKFLOW_SPECS §8 |
-| 6 | Customer NEVER sees internal retry mechanics | WORKFLOW_SPECS §8 |
-| 7 | All 10 retries fail → "No proxy available" + schedule retry cron | WORKFLOW_SPECS §8 |
-| 8 | Retry cron runs every 30 min | WORKFLOW_SPECS §8 |
-| 9 | When retry succeeds, send WhatsApp notification to customer | WORKFLOW_SPECS §8 |
-| 10 | **3 free trials per phone number per day** | WORKFLOW_SPECS §8 |
-| 11 | Failed attempts COUNT toward daily limit (anti-abuse) | WORKFLOW_SPECS §8 |
-| 12 | Daily counter visible to customer ("X/3 used") | WORKFLOW_SPECS §8 |
-| 13 | NO expiration time on free trial proxy (public proxies die on their own) | WORKFLOW_SPECS §8 |
-| 14 | When public proxy dies mid-use, Bunche tells customer it's expected | WORKFLOW_SPECS §8 |
-| 15 | Always upsell paid plans when free proxy fails | WORKFLOW_SPECS §8 |
+| 1 | Free trial uses self-hosted 3proxy on Bunche VPS | WORKFLOW_SPECS §8 |
+| 2 | **2-hour TTL** on every trial | WORKFLOW_SPECS §8 |
+| 3 | Updated disclaimer (shared proxy, not public, not private) | WORKFLOW_SPECS §8 |
+| 4 | Customer must complete Theorem Reach survey + reply DONE | WORKFLOW_SPECS §8 |
+| 5 | Theorem Reach postback verified via HMAC signature | WORKFLOW_SPECS §8 |
+| 6 | Only `status=completed` from Theorem Reach grants trial | WORKFLOW_SPECS §8 |
+| 7 | Idempotency via `survey_transaction_id` | WORKFLOW_SPECS §8 |
+| 8 | Max **3 free trials per phone number per day** | WORKFLOW_SPECS §8 |
+| 9 | Daily counter visible to customer ("X/3 used") | WORKFLOW_SPECS §8 |
+| 10 | Customer NEVER sees internal mechanics | WORKFLOW_SPECS §8 |
+| 11 | Port range 8001-8100 (max 100 concurrent trials) | WORKFLOW_SPECS §8 |
+| 12 | Cron every 5 min cleans expired credentials | WORKFLOW_SPECS §8 |
+| 13 | 3proxy config dynamically updated via shell script | WORKFLOW_SPECS §8 |
+| 14 | Theorem Reach payout tracked in `survey_payout_usd` | WORKFLOW_SPECS §8 |
 
 ---
 
-## What This Means for Costs
+## What This Means for Costs (FINAL)
 
-| Scenario | Cost to Bunche |
-|----------|---------------|
-| Free trial succeeds | ~$0 (using public/free-tier proxy) |
-| Free trial fails after 10 retries | $0 (just time spent, no IP purchased) |
-| Customer upgrades after trial | $$$ — this is the ROI |
-| Customer abuses daily limit | $0 (rejected) |
+| Component | Cost per trial | 100 trials/day |
+|-----------|----------------|----------------|
+| 3proxy bandwidth | ~$0.001 | $0.10 |
+| Theorem Reach (we GET paid) | -$1.50 | -$150 (revenue!) |
+| Survey verification (one webhook) | $0 | $0 |
+| **Net per 100 trials** | **+$1.49/trial** | **+$149/day** |
 
-**ROI:** Free trial is essentially free. Conversion to paid = revenue.
+**Wait — this is REVENUE, not cost.** Theorem Reach pays us for every completed survey. Free trials become a profit center if the survey payout > trial cost (which it does, ~$1.50/trial vs $0.001 trial cost).
 
 ---
 
@@ -362,12 +442,13 @@ CREATE TABLE free_trial_retry_queue (
 
 | Case | What should happen |
 |------|-------------------|
-| Customer has 0 trials left but asks for one | Daily limit message + show paid plans |
-| Customer waits hours after "no proxy" notification | Cron finds proxy → sends WhatsApp if customer is in `retry_queue` |
-| Customer sends DONE without actually doing survey | Survey verification fails → ask to actually complete |
-| Customer tries different numbers to bypass daily limit | Phone hash + phone validation (NDPR concerns) — defer |
-| Public proxy works for 5 min then dies | Customer reports dead → standard "expected for public" response |
-| Customer wants 5GB free trial | NOT offered — free trial is single IP, not data |
+| Customer completes survey but never replies DONE | Wait for Theorem Reach postback (don't require DONE reply) |
+| 3proxy down | Tell customer "trial service temporarily unavailable, try later" + alert admin |
+| All 100 ports in use | "All trial slots busy, try in 30 min" + add customer to waitlist |
+| Customer shares trial credentials publicly | Revoke + block phone (anti-abuse) |
+| Survey completes but customer phone is already in daily limit | Refuse grant, log attempt, no payout dispute |
+| Theorem Reach postback signature invalid | Log + alert admin (possible attack) |
+| Customer asks "can I get a longer trial?" | "Upgrade to paid plan — reply menu" |
 
 ---
 
@@ -375,9 +456,10 @@ CREATE TABLE free_trial_retry_queue (
 
 Daily summary should include:
 ```
-🎁 Free trials today: X delivered, Y failed (10-retry exhaustion)
-🛡️ Top trial-abusing phones: [phone hash] (3/3 daily limit hit X times)
-📊 Trial → paid conversion: X% (track via orders from trial phone_hash)
+🎁 Free trials today: X delivered, Y expired
+💰 Theorem Reach revenue: $X.XX (paid to Bunche)
+🛡️ Port utilization: X/100 currently active
+⚠️ Signature failures: X (potential attack signal)
 ```
 
 ---
@@ -385,6 +467,7 @@ Daily summary should include:
 ## Related
 
 - `workflows/WORKFLOW_SPECS.md` §8 — Free Trial flow
+- `docs/DEPLOYMENT.md` — 3proxy + Theorem Reach setup
+- `.env.example` — `THEOREM_REACH_API_KEY`, `THEOREM_REACH_SECRET`
 - `scenarios/2026-06-26-first-time-order.md` — paid first-time flow
-- `docs/SECURITY_RUNBOOK.md` §4 — incident response for proxy issues
-- `legal/ACCEPTABLE_USE_POLICY.md` — AUP covers "no refunds on free trials"
+- `legal/ACCEPTABLE_USE_POLICY.md` — AUP covers trial abuse
