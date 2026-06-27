@@ -1,0 +1,348 @@
+{
+  "name": "Theorem Reach — Free Trial Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "theorem-reach",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "trigger-webhook",
+      "name": "Theorem Reach Postback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "theorem-reach-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Verify HMAC-SHA256 signature from Theorem Reach\nconst crypto = require('crypto');\n\nconst signature = $input.item.json.headers['x-theorem-reach-signature'] || $input.item.json.body.signature;\nconst payload = $input.item.json.body;\n\nconst secret = process.env.THEOREM_REACH_SECRET;\n\nif (!secret) {\n  throw new Error('THEOREM_REACH_SECRET not set in env');\n}\n\n// Theorem Reach signs: sha256(secret + transaction_id + user_id + payout_usd)\nconst message = `${secret}${payload.transaction_id}${payload.user_id}${payload.payout_usd}`;\nconst expected = crypto.createHash('sha256').update(message).digest('hex');\n\nconst valid = (signature === expected);\n\nreturn {\n  json: {\n    signature_valid: valid,\n    raw_payload: payload\n  }\n};"
+      },
+      "id": "verify-signature",
+      "name": "Verify HMAC Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose"},
+          "conditions": [
+            {
+              "id": "sig-valid",
+              "leftValue": "={{$json.signature_valid}}",
+              "rightValue": true,
+              "operator": {"type": "boolean", "operation": "true"}
+            }
+          ]
+        }
+      },
+      "id": "if-signature-valid",
+      "name": "If Signature Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false},
+          "conditions": [
+            {
+              "id": "status-completed",
+              "leftValue": "={{$json.raw_payload.status}}",
+              "rightValue": "completed",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ]
+        }
+      },
+      "id": "if-status-completed",
+      "name": "If Status=Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "theorem_reach_postbacks",
+        "columns": "transaction_id,user_id,survey_id,status,payout_usd,signature,signature_valid,raw_payload",
+        "additionalFields": "{}",
+        "options": {}
+      },
+      "id": "insert-postback",
+      "name": "Insert Postback (Idempotency)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1120, 100]
+    },
+    {
+      "parameters": {
+        "command": "SELECT user_id FROM theorem_reach_postbacks WHERE transaction_id = '{{$json.raw_payload.transaction_id}}';"
+      },
+      "id": "check-idempotency",
+      "name": "Check Idempotency",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false},
+          "conditions": [
+            {
+              "id": "already-processed",
+              "leftValue": "={{$json.user_id}}",
+              "rightValue": "",
+              "operator": {"type": "string", "operation": "notEmpty"}
+            }
+          ]
+        }
+      },
+      "id": "if-already-processed",
+      "name": "If Already Processed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "command": "SELECT COUNT(*) AS trials_today FROM free_trials WHERE phone_hash = (SELECT phone_hash FROM pending_trials WHERE user_id = '{{$json.raw_payload.user_id}}') AND created_at >= CURRENT_DATE AND status IN ('active', 'expired');"
+      },
+      "id": "check-daily-limit",
+      "name": "Check Daily Limit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1560, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false},
+          "conditions": [
+            {
+              "id": "limit-ok",
+              "leftValue": "={{$json.trials_today}}",
+              "rightValue": 3,
+              "operator": {"type": "number", "operation": "lt"}
+            }
+          ]
+        }
+      },
+      "id": "if-limit-ok",
+      "name": "If Limit OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1780, 100]
+    },
+    {
+      "parameters": {
+        "command": "/usr/local/bin/manage-3proxy-trial.sh add {{$json.username}} '{{$json.password}}' {{$json.port}}",
+        "options": {}
+      },
+      "id": "add-3proxy-user",
+      "name": "Add 3proxy User (Shell)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2000, 50]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate trial credentials and assemble WhatsApp message\nconst crypto = require('crypto');\n\nconst rawPayload = $input.item.json.raw_payload;\n\n// Generate unique user_id: trial_ + 8 hex chars\nconst userId = 'trial_' + crypto.randomBytes(4).toString('hex');\n\n// Generate random password: 16 chars alphanumeric\nconst password = crypto.randomBytes(8).toString('base64').replace(/[+/=]/g, '').substring(0, 16);\n\n// Find next available port (in 8001-8100 range)\nconst port = parseInt($input.item.json.port) || 8001;\n\n// Compute 2-hour expiry\nconst expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();\n\n// Compose WhatsApp message\nconst message = `✅ Survey verified! Trial ready.\n\n━━━━━━━━━━━━━━━━━━\n🌐 BUNCHE TRIAL PROXY — 2 HOURS\n━━━━━━━━━━━━━━━━━━\n\n🔗 IP: bunche.ng\n🔌 Port: ${port}\n👤 User: ${userId}\n🔑 Pass: ${password}\n\n⏰ Expires: ${expiresAt}\n\n⚠️ Shared proxy — other trial users share this IP.\nFor private/production use, upgrade to a paid plan.\n\n🛡️ You've used ${$json.trials_today + 1}/3 free trials today.\n\n💡 Want reliable private proxies? Reply menu to see paid plans.`;\n\nreturn {\n  json: {\n    user_id: userId,\n    password: password,\n    port: port,\n    expires_at: expiresAt,\n    whatsapp_message: message,\n    raw_payload: rawPayload\n  }\n};"
+      },
+      "id": "generate-credentials",
+      "name": "Generate Credentials + Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 50]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "free_trials",
+        "columns": "order_id,phone_hash,user_id,password_hash,proxy_ip,proxy_port,expires_at,status,survey_provider,survey_transaction_id,survey_payout_usd,survey_completed_at",
+        "additionalFields": "{}",
+        "options": {}
+      },
+      "id": "insert-free-trial",
+      "name": "Insert Free Trial Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2400, 50]
+    },
+    {
+      "parameters": {
+        "additionalFields": {},
+        "template": "={{$json.whatsapp_message}}",
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Send WhatsApp to Customer",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [2600, 50]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ok\",\"processed\":true}",
+        "options": {"responseCode": 200}
+      },
+      "id": "respond-success",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2820, 50]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ok\",\"already_processed\":true}",
+        "options": {"responseCode": 200}
+      },
+      "id": "respond-idempotent",
+      "name": "Respond 200 (Idempotent)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "additionalFields": {},
+        "template": "🛡️ Daily limit reached — you've used 3/3 free trials today.\n\nCome back tomorrow, or skip the wait with a paid plan:\n• ISP UK/US: ₦6,500/mo (private, reliable)\n• Residential 5GB: ₦5,000 (data never expires)\n• Mobile 5GB: ₦20,000 (4G)\n\nReply menu to order, or wait until tomorrow for another free trial.",
+        "options": {}
+      },
+      "id": "send-daily-limit-msg",
+      "name": "Send Daily Limit WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [2000, 250]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ok\",\"daily_limit_hit\":true}",
+        "options": {"responseCode": 200}
+      },
+      "id": "respond-limit",
+      "name": "Respond 200 (Limit)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2220, 250]
+    },
+    {
+      "parameters": {
+        "additionalFields": {},
+        "template": "⚠️ Your survey couldn't be verified. Please try again or contact support.",
+        "options": {}
+      },
+      "id": "send-invalid-msg",
+      "name": "Send Invalid Signature WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [900, 450]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"unauthorized\"}",
+        "options": {"responseCode": 401}
+      },
+      "id": "respond-unauthorized",
+      "name": "Respond 401 Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 450]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Audit log: invalid signature\nconst rawPayload = $input.item.json.raw_payload || {};\nconst signature = $input.item.json.headers?.['x-theorem-reach-signature'] || $input.item.json.body?.signature;\n\nreturn {\n  json: {\n    log_type: 'theorem_reach_invalid_signature',\n    transaction_id: rawPayload.transaction_id || 'unknown',\n    user_id: rawPayload.user_id || 'unknown',\n    signature_received: signature || 'none',\n    alert_admin: true\n  }\n};"
+      },
+      "id": "alert-admin-invalid-sig",
+      "name": "Alert Admin (Invalid Signature)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 450]
+    }
+  ],
+  "connections": {
+    "Theorem Reach Postback": {
+      "main": [[{"node": "Verify HMAC Signature", "type": "main", "index": 0}]]
+    },
+    "Verify HMAC Signature": {
+      "main": [[{"node": "If Signature Valid", "type": "main", "index": 0}]]
+    },
+    "If Signature Valid": {
+      "main": [
+        [{"node": "If Status=Completed", "type": "main", "index": 0}],
+        [{"node": "Send Invalid Signature WhatsApp", "type": "main", "index": 1}]
+      ]
+    },
+    "Send Invalid Signature WhatsApp": {
+      "main": [[{"node": "Alert Admin (Invalid Signature)", "type": "main", "index": 0}]]
+    },
+    "Alert Admin (Invalid Signature)": {
+      "main": [[{"node": "Respond 401 Unauthorized", "type": "main", "index": 0}]]
+    },
+    "If Status=Completed": {
+      "main": [
+        [{"node": "Insert Postback (Idempotency)", "type": "main", "index": 0}],
+        [{"node": "Respond 200 (Idempotent)", "type": "main", "index": 1}]
+      ]
+    },
+    "Insert Postback (Idempotency)": {
+      "main": [[{"node": "Check Idempotency", "type": "main", "index": 0}]]
+    },
+    "Check Idempotency": {
+      "main": [
+        [{"node": "Check Daily Limit", "type": "main", "index": 0}],
+        [{"node": "Respond 200 (Idempotent)", "type": "main", "index": 1}]
+      ]
+    },
+    "Check Daily Limit": {
+      "main": [
+        [{"node": "If Limit OK", "type": "main", "index": 0}],
+        [{"node": "Send Daily Limit WhatsApp", "type": "main", "index": 1}]
+      ]
+    },
+    "Send Daily Limit WhatsApp": {
+      "main": [[{"node": "Respond 200 (Limit)", "type": "main", "index": 0}]]
+    },
+    "If Limit OK": {
+      "main": [[{"node": "Add 3proxy User (Shell)", "type": "main", "index": 0}]]
+    },
+    "Add 3proxy User (Shell)": {
+      "main": [[{"node": "Generate Credentials + Message", "type": "main", "index": 0}]]
+    },
+    "Generate Credentials + Message": {
+      "main": [[{"node": "Insert Free Trial Record", "type": "main", "index": 0}]]
+    },
+    "Insert Free Trial Record": {
+      "main": [[{"node": "Send WhatsApp to Customer", "type": "main", "index": 0}]]
+    },
+    "Send WhatsApp to Customer": {
+      "main": [[{"node": "Respond 200 OK", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {"name": "bunche"},
+    {"name": "free-trial"},
+    {"name": "theorem-reach"},
+    {"name": "webhook"}
+  ],
+  "active": false,
+  "id": "theorem-reach-webhook",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
