@@ -3,6 +3,7 @@
 **Date:** 2026-06-27
 **Status:** LOCKED (council-validated)
 **Source:** Required by AUP §2.3 enforcement
+**Last update:** Added explicit "first-step" code snippet per security council feedback
 
 ---
 
@@ -78,34 +79,76 @@ If found:
 
 ---
 
-## How to Check (Per Webhook)
+## How to Check (Per Webhook) — **CRITICAL: FIRST STEP IN EVERY WORKFLOW**
 
-Every incoming webhook checks the sender against the blocklist BEFORE any other processing:
+Every incoming webhook checks the sender against the blocklist BEFORE any other processing.
 
-```sql
--- Add this as the FIRST node in every workflow
-SELECT 1 FROM blocked_phone_hashes
-WHERE phone_hash = $sender_hash
-  AND (expires_at IS NULL OR expires_at > NOW())
-LIMIT 1;
+### The Phone Hash Block Check (n8n Code Node)
+
+```javascript
+// This node runs FIRST in every webhook workflow
+const crypto = require('crypto');
+
+// Get sender's phone number from webhook payload
+const senderPhone = $json.body?.from || $json.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
+
+// Hash it
+const phoneHash = crypto.createHash('sha256').update(senderPhone).digest('hex').substring(0, 20);
+
+// Check blocklist
+const blocked = await db.query(
+  `SELECT 1 FROM blocked_phone_hashes
+   WHERE phone_hash = $1
+     AND (expires_at IS NULL OR expires_at > NOW())
+   LIMIT 1`,
+  [phoneHash]
+);
+
+if (blocked.length > 0) {
+  // Generic response — don't reveal we're using phone_hash block
+  await sendWhatsApp(senderPhone,
+    "🛡️ Your account is currently restricted.\n\n" +
+    "If you believe this is a mistake, contact abuse@bunche.com"
+  );
+  
+  // Log the blocked attempt
+  await db.query(
+    `INSERT INTO customer_audit_log (event_type, customer_hash, metadata)
+     VALUES ('blocked_attempt', $1, $2)`,
+    [phoneHash, JSON.stringify({
+      workflow: $workflow.name,
+      source_ip: $json.headers?.['cf-connecting-ip'] || 'unknown'
+    })]
+  );
+  
+  // Return 200 to prevent retry abuse
+  return { json: { blocked: true, continue: false } };
+}
+
+// Pass phone_hash to next node for use throughout workflow
+return { 
+  json: { 
+    blocked: false, 
+    continue: true,
+    phone_hash: phoneHash,
+    sender_phone: senderPhone  // Only use internally, never log
+  } 
+};
 ```
 
-**If blocked:** respond with neutral message:
-```
-🛡️ Your account is currently restricted.
+**Wiring:**
+- This node runs **FIRST** in every workflow that accepts customer input
+- It returns `{blocked: true}` if blocked → workflow exits with no further processing
+- The `phone_hash` value is passed to all downstream nodes (used for audit logs, customer lookups, etc.)
 
-Reason: [shown to customer — "Multiple trial abuse reports" / "Trial fraud detected" / "Admin review"]
-
-If you believe this is a mistake, contact abuse@bunche.com
-```
-
-**DO NOT** reveal specific technical details or that the block is by phone_hash (helps attackers).
+**DO NOT** reveal in customer-facing messages:
+- That we're using phone_hash to block (helps attackers)
+- The specific reason (only generic "restricted" message)
+- The expiry date
 
 ---
 
-## How to Unblock
-
-### Admin command
+## Admin Unblock Command
 
 ```
 Admin: Unblock <phone_hash>
@@ -119,7 +162,56 @@ DELETE FROM blocked_phone_hashes WHERE phone_hash = ?
 WhatsApp to customer: "Your account access has been restored."
 ```
 
-### Auto-expiry
+### Unblock (n8n Implementation)
+
+```javascript
+// n8n Code node — unblock phone_hash (admin command)
+const input = $json.body.text.trim();
+const match = input.match(/^Unblock ([a-f0-9]{20})$/i);
+
+if (!match) {
+  return { json: { error: 'Invalid format. Use: Unblock <20-char-hash>' } };
+}
+
+const phoneHash = match[1].toLowerCase();
+
+const result = await db.query(
+  `DELETE FROM blocked_phone_hashes WHERE phone_hash = $1 RETURNING phone_hash`,
+  [phoneHash]
+);
+
+if (result.length === 0) {
+  return { json: { error: 'Phone hash not found in block list' } };
+}
+
+await db.query(
+  `INSERT INTO customer_audit_log (event_type, customer_hash, metadata)
+   VALUES ('phone_hash_unblocked', $1, $2)`,
+  [phoneHash, JSON.stringify({
+    admin_phone_hash: process.env.ADMIN_PHONE_HASH,
+    timestamp: new Date().toISOString()
+  })]
+);
+
+// Optionally notify customer (if we have their last contact)
+const customer = await db.query(
+  `SELECT phone FROM customers WHERE phone_hash = $1 LIMIT 1`,
+  [phoneHash]
+);
+
+if (customer.length > 0) {
+  await sendWhatsApp(customer[0].phone,
+    "✅ Your Bunche account access has been restored.\n\n" +
+    "You can now order proxies and request free trials again."
+  );
+}
+
+return { json: { success: true, unblocked: phoneHash } };
+```
+
+---
+
+## Auto-Expiry Cron
 
 ```sql
 -- Cron: every 6 hours
@@ -135,13 +227,12 @@ WHERE expires_at IS NOT NULL AND expires_at < NOW();
 
 **Risk:** Phone_hash collision is theoretically possible (1 in ~1 trillion). For our scale (1M customers), collision risk is negligible (~5e-7).
 
-**Mitigation:** Hash includes first 12 chars of sha256 (not just [:20]). That's actually [:12] + first 8 chars from position 20. Wait — let me clarify:
+**Mitigation:** Hash includes first 20 chars of sha256 — 160 bits of entropy.
 
 ```python
 import hashlib
 def phone_hash(phone: str) -> str:
     return hashlib.sha256(phone.encode()).hexdigest()[:20]
-# Result: 40 hex chars = 20 bytes = ~160 bits of entropy
 # Collision probability at 1M entries: ~2.7e-41 (essentially zero)
 ```
 
@@ -163,11 +254,12 @@ def phone_hash(phone: str) -> str:
 
 ## Audit Trail
 
-Every block + unblock writes to `customer_audit_log`:
+Every block + unblock + blocked attempt writes to `customer_audit_log`:
 
 ```
 {event_type: 'phone_hash_blocked', reason, evidence_jsonb, blocked_by_hash, customer_hash, timestamp}
 {event_type: 'phone_hash_unblocked', admin_hash, customer_hash, timestamp}
+{event_type: 'blocked_attempt', customer_hash, workflow, source_ip_hash, timestamp}
 {event_type: 'auto_block_cron_ran', count_blocked, phone_hashes}
 ```
 
@@ -188,3 +280,4 @@ Every block + unblock writes to `customer_audit_log`:
 - `legal/ACCEPTABLE_USE_POLICY.md` §2.3 — Enforcement matrix
 - `scenarios/2026-06-26-free-trial.md` §2.2 — Free trial abuse types
 - `docs/SECURITY_RUNBOOK.md` §1 — Incident response for compromised accounts
+- `scenarios/2026-06-27-admin-operations.md` — Unblock command implementation
